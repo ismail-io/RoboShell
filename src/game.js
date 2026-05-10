@@ -1309,12 +1309,15 @@ class MenuScene extends Maki.Scene {
     const introVideo  = document.getElementById('intro-video');
     introScreen.classList.remove('hidden', 'fade-out');
     introVideo.currentTime = 0;
+    // User clicked — browser allows sound now
     introVideo.muted = false;
     introVideo.play().then(() => {
-      renderIntroFrame();
+      if (window.renderIntroFrame) window.renderIntroFrame();
     }).catch(() => {
       introVideo.muted = true;
-      introVideo.play().then(() => renderIntroFrame()).catch(() => {
+      introVideo.play().then(() => {
+        if (window.renderIntroFrame) window.renderIntroFrame();
+      }).catch(() => {
         introScreen.classList.add('fade-out');
         setTimeout(() => introScreen.classList.add('hidden'), 650);
       });

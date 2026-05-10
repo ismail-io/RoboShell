@@ -11,6 +11,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
 </head>
 <body>
+  <!-- Click to start splash — required for audio autoplay -->
+  <div id="start-splash">
+    <div id="start-content">
+      <div id="start-title">ROBOSHELL SAVIOR</div>
+      <div id="start-btn">▶ &nbsp; CLICK TO START</div>
+    </div>
+  </div>
+
   <!-- Intro video screen — shown first on load -->
   <div id="intro-screen">
     <canvas id="intro-canvas"></canvas>
@@ -147,13 +155,32 @@
       dismissIntro();
     });
 
-    introVideo.muted = false;
+    // ── Click-to-start splash ──
+    const startSplash = document.getElementById('start-splash');
+    startSplash.addEventListener('click', () => {
+      startSplash.classList.add('hidden');
+      setTimeout(() => startSplash.remove(), 500);
+      // Now browser allows audio — play intro with sound
+      introVideo.muted = false;
+      introVideo.currentTime = 0;
+      introVideo.play().then(() => {
+        renderIntroFrame();
+      }).catch(() => {
+        // Still blocked — play muted
+        introVideo.muted = true;
+        introVideo.play().then(() => renderIntroFrame()).catch(() => dismissIntro());
+      });
+    }, { once: true });
+
+    // Auto-play MUTED on page load (browser policy requires muted for autoplay)
+    introVideo.muted = true;
     introVideo.play().then(() => {
       renderIntroFrame();
-    }).catch(() => {
-      introVideo.muted = true;
-      introVideo.play().then(() => renderIntroFrame()).catch(() => dismissIntro());
-    });
+    }).catch(() => dismissIntro());
+
+    // Expose functions globally so game.js can call them
+    window.renderIntroFrame = renderIntroFrame;
+    window.dismissIntro = dismissIntro;
   </script>
   <script src="src/maki.js"></script>
   <script src="src/loader.js"></script>
