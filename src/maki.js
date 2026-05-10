@@ -103,6 +103,8 @@ const Maki = (() => {
 
     _onTouchStart(e) {
       e.preventDefault();
+      // Only process joystick/fire touch when touch mode is active
+      if (window._controlMode !== 'touch') return;
       for (const t of e.changedTouches) {
         if (!this._isFireSide(t.clientX) && this._joystickId === null) {
           // Left side → joystick
@@ -121,6 +123,7 @@ const Maki = (() => {
 
     _onTouchMove(e) {
       e.preventDefault();
+      if (window._controlMode !== 'touch') return;
       for (const t of e.changedTouches) {
         if (t.identifier === this._joystickId) {
           const DEAD = 10;   // dead-zone px
@@ -140,6 +143,7 @@ const Maki = (() => {
 
     _onTouchEnd(e) {
       e.preventDefault();
+      if (window._controlMode !== 'touch') return;
       for (const t of e.changedTouches) {
         if (t.identifier === this._joystickId) {
           this._joystickId = null;
@@ -550,6 +554,7 @@ const Maki = (() => {
 
       this.renderer.init(canvasEl);
       this.input.init();
+      window._makiInput = this.input;   // expose for settings panel to clear stuck touch state
       this.audio.init();
 
       this._scenes      = {};

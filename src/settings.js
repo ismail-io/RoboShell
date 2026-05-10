@@ -8,6 +8,10 @@
  *    SOUND     — music volume, SFX volume, mute toggle
  * ============================================================
  */
+
+// Safe default — keyboard mode until settings loads from localStorage
+window._controlMode = 'keyboard';
+
 class SettingsPanel {
   constructor(engine) {
     this._engine = engine;
@@ -29,6 +33,7 @@ class SettingsPanel {
     // Apply on load
     this._applyMusic();
     this._applySfx();
+    this._applyControlMode();
 
     // Interaction state
     this._hoverClose    = false;
@@ -491,11 +496,13 @@ class SettingsPanel {
     }
     if (this._inBtn(mx, my, this._btnKbd)) {
       this.controlMode = 'keyboard';
+      this._applyControlMode();
       this._save();
       return;
     }
     if (this._inBtn(mx, my, this._btnTouch)) {
       this.controlMode = 'touch';
+      this._applyControlMode();
       this._save();
       return;
     }
@@ -575,6 +582,22 @@ class SettingsPanel {
   _applySfx() {
     // SFX volume is read by MakiAudio.beep via global accessor
     window._sfxVolume = this.muted ? 0 : this.sfxVol;
+  }
+
+  _applyControlMode() {
+    // Expose to window so maki.js input and game.js draw can read it
+    window._controlMode = this.controlMode;
+    // If switching to keyboard, clear any stuck touch state immediately
+    if (this.controlMode === 'keyboard') {
+      const input = window._makiInput;
+      if (input) {
+        input._joystickId  = null;
+        input._fireId      = null;
+        input._touchMove   = { x: 0, y: 0 };
+        input._touchFire   = false;
+        input._keys['Space'] = false;
+      }
+    }
   }
 
   // ── Persistence ──────────────────────────────

@@ -434,8 +434,10 @@ class GameScene extends Maki.Scene {
     // Death overlay
     if (!this.player.alive) this._drawDeathOverlay(renderer);
 
-    // Touch controls — always draw during gameplay so mobile players can see them
-    renderer.drawTouchControls(this.engine.input.getTouchState());
+    // Touch controls — only draw when touch mode is selected in settings
+    if (window._controlMode === 'touch') {
+      renderer.drawTouchControls(this.engine.input.getTouchState());
+    }
   }
 
   // ─────────────────────────────────────────────
