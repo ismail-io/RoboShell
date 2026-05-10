@@ -110,4 +110,4 @@ starfish-savior/
 
 ## 📜 License
 
-This project was created for the Maki Game Hackathon 2026. All game assets and code are original work by the author.
+All game assets and code are original work by the author.
