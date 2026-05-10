@@ -1,8 +1,6 @@
 # RoboShell Savior 🐢🌊
 
-> A 2D pixel-art underwater survival game built with the **Maki framework** for the Maki Game Hackathon 2026.
-
-**GitHub Repository:** https://github.com/ismail-io/RoboShell
+> A 2D pixel-art underwater survival game built with the **Maki framework**.
 
 ---
 
@@ -107,17 +105,6 @@ starfish-savior/
     ├── music/              # BGM + game over music
     └── video/              # Intro video
 ```
-
----
-
-## 🎯 Hackathon Submission
-
-- **Event:** Maki Game Hackathon 2026
-- **Category:** Most Creative Game
-- **Framework:** Maki (custom 2D pixel game engine)
-- **Theme:** Ocean conservation — clean the sea, defeat pollution bosses
-- **Submitted by:** ismail-io
-- **Deadline:** May 10, 2026
 
 ---
 
