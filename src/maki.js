@@ -57,18 +57,25 @@ const Maki = (() => {
   };
 
   // ─────────────────────────────────────────────
-  //  Input handler
+  //  Input handler  (keyboard + touch)
   // ─────────────────────────────────────────────
   const MakiInput = {
     _keys: {},
     _justPressed: {},
     _justReleased: {},
 
+    // ── Touch state ──
+    _touchMove:  { x: 0, y: 0 },   // normalised joystick vector (-1..1)
+    _touchFire:  false,             // fire button held
+    _joystickId: null,              // touch identifier for joystick
+    _fireId:     null,              // touch identifier for fire button
+    _joystickOrigin: { x: 0, y: 0 },
+
     init() {
+      // ── Keyboard ──
       window.addEventListener('keydown', e => {
         if (!this._keys[e.code]) this._justPressed[e.code] = true;
         this._keys[e.code] = true;
-        // Prevent arrow key scrolling
         if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) {
           e.preventDefault();
         }
@@ -77,10 +84,81 @@ const Maki = (() => {
         this._keys[e.code] = false;
         this._justReleased[e.code] = true;
       });
+
+      // ── Touch ──
+      const canvas = document.getElementById('gameCanvas');
+      if (canvas) {
+        canvas.addEventListener('touchstart',  e => this._onTouchStart(e),  { passive: false });
+        canvas.addEventListener('touchmove',   e => this._onTouchMove(e),   { passive: false });
+        canvas.addEventListener('touchend',    e => this._onTouchEnd(e),    { passive: false });
+        canvas.addEventListener('touchcancel', e => this._onTouchEnd(e),    { passive: false });
+      }
+    },
+
+    // ── Touch helpers ──
+    _isFireSide(x) {
+      // Right half of screen = fire button
+      return x > window.innerWidth / 2;
+    },
+
+    _onTouchStart(e) {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (!this._isFireSide(t.clientX) && this._joystickId === null) {
+          // Left side → joystick
+          this._joystickId = t.identifier;
+          this._joystickOrigin = { x: t.clientX, y: t.clientY };
+          this._touchMove = { x: 0, y: 0 };
+        } else if (this._isFireSide(t.clientX) && this._fireId === null) {
+          // Right side → fire
+          this._fireId = t.identifier;
+          this._touchFire = true;
+          if (!this._keys['Space']) this._justPressed['Space'] = true;
+          this._keys['Space'] = true;
+        }
+      }
+    },
+
+    _onTouchMove(e) {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (t.identifier === this._joystickId) {
+          const DEAD = 10;   // dead-zone px
+          const MAX  = 60;   // full-tilt px
+          let dx = t.clientX - this._joystickOrigin.x;
+          let dy = t.clientY - this._joystickOrigin.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < DEAD) { this._touchMove = { x: 0, y: 0 }; continue; }
+          const clamped = Math.min(dist, MAX);
+          this._touchMove = {
+            x: (dx / dist) * (clamped / MAX),
+            y: (dy / dist) * (clamped / MAX)
+          };
+        }
+      }
+    },
+
+    _onTouchEnd(e) {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (t.identifier === this._joystickId) {
+          this._joystickId = null;
+          this._touchMove  = { x: 0, y: 0 };
+        }
+        if (t.identifier === this._fireId) {
+          this._fireId    = null;
+          this._touchFire = false;
+          this._keys['Space'] = false;
+          this._justReleased['Space'] = true;
+        }
+      }
     },
 
     /** Is key currently held */
-    isDown(code) { return !!this._keys[code]; },
+    isDown(code) {
+      if (code === 'Space' && this._touchFire) return true;
+      return !!this._keys[code];
+    },
 
     /** Was key pressed this frame */
     wasPressed(code) { return !!this._justPressed[code]; },
@@ -90,12 +168,16 @@ const Maki = (() => {
 
     /** Call at end of each frame to clear just-pressed/released */
     flush() {
-      this._justPressed = {};
+      this._justPressed  = {};
       this._justReleased = {};
     },
 
-    /** Get movement vector from WASD / Arrow keys */
+    /** Get movement vector from WASD / Arrow keys OR touch joystick */
     getMovement() {
+      // Touch joystick takes priority when active
+      if (this._joystickId !== null) {
+        return { x: this._touchMove.x, y: this._touchMove.y };
+      }
       let x = 0, y = 0;
       if (this.isDown('ArrowLeft')  || this.isDown('KeyA')) x -= 1;
       if (this.isDown('ArrowRight') || this.isDown('KeyD')) x += 1;
@@ -104,6 +186,16 @@ const Maki = (() => {
       // Normalize diagonal
       if (x !== 0 && y !== 0) { x *= 0.707; y *= 0.707; }
       return { x, y };
+    },
+
+    /** Expose touch state for HUD rendering */
+    getTouchState() {
+      return {
+        joystickActive: this._joystickId !== null,
+        joystickOrigin: this._joystickOrigin,
+        joystickVec:    this._touchMove,
+        fireActive:     this._touchFire
+      };
     }
   };
 
@@ -196,7 +288,84 @@ const Maki = (() => {
     setAlpha(a) { this.ctx.globalAlpha = a; },
 
     /** Set composite operation */
-    setBlend(op) { this.ctx.globalCompositeOperation = op; }
+    setBlend(op) { this.ctx.globalCompositeOperation = op; },
+
+    /**
+     * Draw on-screen touch controls (joystick + fire button).
+     * Call once per frame from the game scene draw method.
+     * Only renders when a touch device is detected or touch is active.
+     */
+    drawTouchControls(inputState) {
+      const ctx = this.ctx;
+      const W   = this.width;
+      const H   = this.height;
+
+      // ── Joystick (bottom-left) ──
+      const jcx = 90;
+      const jcy = H - 90;
+      const outerR = 52;
+      const innerR = 26;
+
+      ctx.save();
+
+      // Outer ring
+      ctx.beginPath();
+      ctx.arc(jcx, jcy, outerR, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0,255,204,0.35)';
+      ctx.lineWidth   = 3;
+      ctx.stroke();
+      ctx.fillStyle   = 'rgba(0,0,0,0.25)';
+      ctx.fill();
+
+      // Thumb nub — offset by joystick vector
+      const nx = jcx + inputState.joystickVec.x * (outerR - innerR);
+      const ny = jcy + inputState.joystickVec.y * (outerR - innerR);
+      ctx.beginPath();
+      ctx.arc(nx, ny, innerR, 0, Math.PI * 2);
+      ctx.fillStyle = inputState.joystickActive
+        ? 'rgba(0,255,204,0.55)'
+        : 'rgba(0,255,204,0.25)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,255,204,0.6)';
+      ctx.lineWidth   = 2;
+      ctx.stroke();
+
+      // Directional arrows hint
+      ctx.fillStyle = 'rgba(0,255,204,0.3)';
+      ctx.font      = '14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('▲', jcx,          jcy - outerR - 10);
+      ctx.fillText('▼', jcx,          jcy + outerR + 10);
+      ctx.fillText('◀', jcx - outerR - 10, jcy);
+      ctx.fillText('▶', jcx + outerR + 10, jcy);
+
+      // ── Fire button (bottom-right) ──
+      const fcx = W - 90;
+      const fcy = H - 90;
+      const fireR = 44;
+
+      ctx.beginPath();
+      ctx.arc(fcx, fcy, fireR, 0, Math.PI * 2);
+      ctx.fillStyle = inputState.fireActive
+        ? 'rgba(255,80,80,0.65)'
+        : 'rgba(255,80,80,0.25)';
+      ctx.fill();
+      ctx.strokeStyle = inputState.fireActive
+        ? 'rgba(255,120,120,0.9)'
+        : 'rgba(255,80,80,0.5)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Fire icon
+      ctx.fillStyle = inputState.fireActive ? '#fff' : 'rgba(255,200,200,0.7)';
+      ctx.font      = '22px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🔥', fcx, fcy);
+
+      ctx.restore();
+    }
   };
 
   // ─────────────────────────────────────────────
@@ -230,6 +399,10 @@ const Maki = (() => {
      */
     beep(freq = 440, dur = 0.1, type = 'square', vol = 0.15) {
       if (!this._enabled || !this._ctx) return;
+      // Respect SFX volume from settings panel (0–1), default 1
+      const sfxScale = (typeof window._sfxVolume === 'number') ? window._sfxVolume : 1;
+      const finalVol = vol * sfxScale;
+      if (finalVol <= 0) return;
       try {
         const osc  = this._ctx.createOscillator();
         const gain = this._ctx.createGain();
@@ -237,7 +410,7 @@ const Maki = (() => {
         gain.connect(this._ctx.destination);
         osc.type = type;
         osc.frequency.setValueAtTime(freq, this._ctx.currentTime);
-        gain.gain.setValueAtTime(vol, this._ctx.currentTime);
+        gain.gain.setValueAtTime(finalVol, this._ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, this._ctx.currentTime + dur);
         osc.start(this._ctx.currentTime);
         osc.stop(this._ctx.currentTime + dur);

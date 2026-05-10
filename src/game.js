@@ -433,6 +433,9 @@ class GameScene extends Maki.Scene {
 
     // Death overlay
     if (!this.player.alive) this._drawDeathOverlay(renderer);
+
+    // Touch controls — always draw during gameplay so mobile players can see them
+    renderer.drawTouchControls(this.engine.input.getTouchState());
   }
 
   // ─────────────────────────────────────────────
@@ -875,13 +878,19 @@ class MenuScene extends Maki.Scene {
     this._frame   = 0;
 
     // Button hit areas (set in draw)
-    this._btnStart = { x:0, y:0, w:0, h:0 };
-    this._btnExit  = { x:0, y:0, w:0, h:0 };
-    this._hoverStart = false;
-    this._hoverExit  = false;
+    this._btnStart    = { x:0, y:0, w:0, h:0 };
+    this._btnExit     = { x:0, y:0, w:0, h:0 };
+    this._btnSettings = { x:0, y:0, w:0, h:0 };
+    this._hoverStart    = false;
+    this._hoverExit     = false;
+    this._hoverSettings = false;
+
+    // Settings panel
+    this._settings = new SettingsPanel(engine);
 
     this._handleClick  = this._onClick.bind(this);
     this._handleMove   = this._onMove.bind(this);
+    this._handleTouch  = this._onTouchClick.bind(this);
   }
 
   onEnter() {
@@ -891,6 +900,7 @@ class MenuScene extends Maki.Scene {
     document.getElementById('ui-overlay').style.display = 'none';
     window.addEventListener('click',     this._handleClick);
     window.addEventListener('mousemove', this._handleMove);
+    window.addEventListener('touchend',  this._handleTouch);
 
     this._resetTitleLetters();
   }
@@ -915,6 +925,8 @@ class MenuScene extends Maki.Scene {
     document.getElementById('ui-overlay').style.display = 'flex';
     window.removeEventListener('click',     this._handleClick);
     window.removeEventListener('mousemove', this._handleMove);
+    window.removeEventListener('touchend',  this._handleTouch);
+    this._settings.close();
   }
 
   _onClick(e) {
@@ -922,16 +934,52 @@ class MenuScene extends Maki.Scene {
     const intro = document.getElementById('intro-screen');
     if (intro && !intro.classList.contains('hidden')) return;
     const mx = e.clientX, my = e.clientY;
+
+    // Let settings panel handle its own clicks first
+    if (this._settings.isOpen()) {
+      this._settings.handleClick(mx, my);
+      return;
+    }
+
+    if (this._inBtn(mx, my, this._btnSettings)) {
+      this._settings.open();
+      return;
+    }
+    if (this._inBtn(mx, my, this._btnStart)) this._onStart();
+    if (this._inBtn(mx, my, this._btnExit))  this._onExit();
+  }
+
+  _onTouchClick(e) {
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const intro = document.getElementById('intro-screen');
+    if (intro && !intro.classList.contains('hidden')) return;
+    const mx = t.clientX, my = t.clientY;
+
+    if (this._settings.isOpen()) {
+      this._settings.handleClick(mx, my);
+      return;
+    }
+    if (this._inBtn(mx, my, this._btnSettings)) {
+      this._settings.open();
+      return;
+    }
     if (this._inBtn(mx, my, this._btnStart)) this._onStart();
     if (this._inBtn(mx, my, this._btnExit))  this._onExit();
   }
 
   _onMove(e) {
     const mx = e.clientX, my = e.clientY;
-    this._hoverStart = this._inBtn(mx, my, this._btnStart);
-    this._hoverExit  = this._inBtn(mx, my, this._btnExit);
+    if (this._settings.isOpen()) {
+      this._settings.handleMove(mx, my);
+      document.body.style.cursor = this._settings.isHoveringAny() ? 'pointer' : 'default';
+      return;
+    }
+    this._hoverStart    = this._inBtn(mx, my, this._btnStart);
+    this._hoverExit     = this._inBtn(mx, my, this._btnExit);
+    this._hoverSettings = this._inBtn(mx, my, this._btnSettings);
     document.body.style.cursor =
-      (this._hoverStart || this._hoverExit) ? 'pointer' : 'default';
+      (this._hoverStart || this._hoverExit || this._hoverSettings) ? 'pointer' : 'default';
   }
 
   _inBtn(mx, my, btn) {
@@ -941,6 +989,7 @@ class MenuScene extends Maki.Scene {
 
   update(dt) {
     this._frame++;
+    this._settings.update(dt);
 
     // Loop title animation every 15s (900 frames)
     if (this._frame - this._titleCycleStart >= 900) {
@@ -1102,6 +1151,14 @@ class MenuScene extends Maki.Scene {
     this._drawButton(ctx, this._btnStart, 'START', this._hoverStart, f, '#00ffcc', 'rgba(0,20,15,0.82)');
     this._drawButton(ctx, this._btnExit,  'EXIT',  this._hoverExit,  f, '#ff5544', 'rgba(20,0,0,0.82)', false);
 
+    // ── Gear / Settings button — top-right corner ──
+    const gearSize = Math.round(Math.min(W * 0.055, 48));
+    const gearMargin = 18;
+    const gearX = W - gearSize - gearMargin;
+    const gearY = gearMargin;
+    this._btnSettings = { x: gearX, y: gearY, w: gearSize, h: gearSize };
+    this._drawGearButton(ctx, gearX, gearY, gearSize, this._hoverSettings, f);
+
     // ── 5. Controls hint ──
     ctx.save();
     ctx.textAlign    = 'center';
@@ -1110,6 +1167,63 @@ class MenuScene extends Maki.Scene {
     ctx.fillStyle    = 'rgba(140,200,170,0.45)';
     ctx.shadowBlur   = 0;
     ctx.fillText('WASD / Arrows — Move    SPACE — Shoot', W / 2, btn1Y + btnH + gap * 2.2);
+    ctx.restore();
+
+    // ── Settings panel (drawn on top of everything) ──
+    this._settings.draw(ctx, W, H, f);
+  }
+
+  _drawGearButton(ctx, x, y, size, hover, frame) {
+    const cx = x + size / 2;
+    const cy = y + size / 2;
+    const r  = size / 2;
+    const pulse = hover ? 1 + Math.sin(frame * 0.15) * 0.06 : 1;
+    const rot   = frame * 0.012 + (hover ? frame * 0.03 : 0);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(pulse, pulse);
+
+    // Background circle
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = hover ? 'rgba(0,30,40,0.92)' : 'rgba(0,15,25,0.78)';
+    ctx.fill();
+    ctx.strokeStyle = hover ? '#00ffcc' : 'rgba(0,200,160,0.55)';
+    ctx.lineWidth   = hover ? 2.5 : 1.5;
+    ctx.shadowColor = '#00ffcc';
+    ctx.shadowBlur  = hover ? 16 : 6;
+    ctx.stroke();
+
+    // Gear icon
+    ctx.rotate(rot);
+    const teeth = 8;
+    const innerR = r * 0.28;
+    const outerR = r * 0.52;
+    const toothW = (Math.PI * 2 / teeth) * 0.42;
+    ctx.fillStyle = hover ? '#00ffcc' : 'rgba(0,220,170,0.8)';
+    ctx.shadowBlur = hover ? 10 : 4;
+    ctx.beginPath();
+    for (let i = 0; i < teeth; i++) {
+      const a0 = (i / teeth) * Math.PI * 2 - toothW / 2;
+      const a1 = a0 + toothW;
+      const a2 = a1 + (Math.PI * 2 / teeth - toothW) * 0.5;
+      const a3 = (i + 1) / teeth * Math.PI * 2 - toothW / 2;
+      ctx.lineTo(Math.cos(a0) * innerR, Math.sin(a0) * innerR);
+      ctx.lineTo(Math.cos(a0) * outerR, Math.sin(a0) * outerR);
+      ctx.lineTo(Math.cos(a1) * outerR, Math.sin(a1) * outerR);
+      ctx.lineTo(Math.cos(a1) * innerR, Math.sin(a1) * innerR);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Center hole
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.18, 0, Math.PI * 2);
+    ctx.fillStyle = hover ? 'rgba(0,30,40,0.95)' : 'rgba(0,15,25,0.9)';
+    ctx.shadowBlur = 0;
+    ctx.fill();
+
     ctx.restore();
   }
 

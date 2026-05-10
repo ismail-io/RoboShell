@@ -30,6 +30,10 @@ html, body {
   height: 100vh;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+  touch-action: none;   /* prevent browser scroll/zoom on touch */
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* ── HUD Overlay ── */
