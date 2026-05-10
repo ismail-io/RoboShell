@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Robot Turtle Sprite Generator</title>
+<style>
+  body { background: #222; color: #fff; font-family: monospace; padding: 20px; }
+  canvas { image-rendering: pixelated; border: 1px solid #555; margin: 4px; }
+  .row { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0; }
+  label { font-size: 12px; color: #aaa; display: block; }
+  button { background: #00ffcc; color: #000; border: none; padding: 10px 24px;
+           font-size: 14px; cursor: pointer; margin-top: 16px; font-weight: bold; }
+</style>
+</head>
+<body>
+<h2>🐢 Robot Turtle Sprite Sheet Generator</h2>
+<p>Generates a 5×2 sprite sheet (10 frames × 32×32px = 320×64px)</p>
+<p>Rows: Idle(2) | Up(2) | Down(2) | Left(2) | Right(2)</p>
+
+<div class="row" id="previews"></div>
+<br>
+<canvas id="sheet" width="320" height="64" style="transform:scale(4); transform-origin:top left; margin-bottom: 200px;"></canvas>
+<br><br>
+<button onclick="download()">⬇ Download turtle_sprite.png</button>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+//  32×32 pixel-art robot turtle — drawn with pixel commands
+//  Origin = top-left of 32×32 cell
+// ─────────────────────────────────────────────────────────────
+
+// Colour palette
+const C = {
+  none:    null,
+  outline: '#111122',
+  shell1:  '#1a6b8a',   // dark teal shell base
+  shell2:  '#2299bb',   // mid teal
+  shell3:  '#44ccdd',   // light teal highlight
+  glow:    '#00eeff',   // neon blue glow lines
+  glow2:   '#88ffff',   // bright glow
+  metal1:  '#334455',   // dark metal body
+  metal2:  '#556677',   // mid metal
+  metal3:  '#8899aa',   // light metal highlight
+  eye:     '#00ccff',   // blue eye
+  eyeGlow: '#aaffff',   // eye highlight
+  flipper: '#2a5566',   // flipper dark
+  flipper2:'#3a7788',   // flipper mid
+  belly:   '#1a3344',   // belly plate
+  belly2:  '#2a4455',
+  red:     '#ff4444',   // antenna light
+  red2:    '#ff8888',
+  white:   '#eeffff',
+};
+
+// Draw a single pixel at (px,py) in a 32×32 ctx
+function px(ctx, x, y, color) {
+  if (!color || color === C.none) return;
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, 1, 1);
+}
+
+// Draw a rectangle of pixels
+function rect(ctx, x, y, w, h, color) {
+  if (!color) return;
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, w, h);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Base turtle body (top-down view, facing UP by default)
+//  We'll rotate/flip for other directions
+// ─────────────────────────────────────────────────────────────
+
+function drawTurtleBase(ctx, flipX, flipY, legPhase) {
+  // flipX: mirror horizontally, flipY: mirror vertically
+  // legPhase: 0 or 1 for animation
+
+  ctx.save();
+  if (flipX || flipY) {
+    ctx.translate(flipX ? 32 : 0, flipY ? 32 : 0);
+    ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+  }
+
+  // ── Shadow / depth ──
+  ctx.globalAlpha = 0.18;
+  rect(ctx, 9, 10, 14, 14, '#000033');
+  ctx.globalAlpha = 1;
+
+  // ── Flippers (back) ──
+  const lp = legPhase === 0 ? 0 : 2;
+  // Back-left flipper
+  rect(ctx, 7 - lp, 20, 5, 3, C.outline);
+  rect(ctx, 8 - lp, 21, 3, 2, C.flipper2);
+  px(ctx, 7 - lp, 21, C.flipper);
+  // Back-right flipper
+  rect(ctx, 20 + lp, 20, 5, 3, C.outline);
+  rect(ctx, 21 + lp, 21, 3, 2, C.flipper2);
+  px(ctx, 24 + lp, 21, C.flipper);
+
+  // ── Flippers (front) ──
+  // Front-left flipper
+  rect(ctx, 6 + lp, 11, 5, 3, C.outline);
+  rect(ctx, 7 + lp, 12, 3, 2, C.flipper2);
+  px(ctx, 6 + lp, 12, C.flipper);
+  // Front-right flipper
+  rect(ctx, 21 - lp, 11, 5, 3, C.outline);
+  rect(ctx, 22 - lp, 12, 3, 2, C.flipper2);
+  px(ctx, 25 - lp, 12, C.flipper);
+
+  // ── Body outline ──
+  rect(ctx, 10, 8, 12, 16, C.outline);
+  rect(ctx, 9, 9, 14, 14, C.outline);
+  // Round corners
+  px(ctx, 10, 9, C.outline);
+  px(ctx, 21, 9, C.outline);
+  px(ctx, 10, 22, C.outline);
+  px(ctx, 21, 22, C.outline);
+
+  // ── Belly plate ──
+  rect(ctx, 11, 9, 10, 14, C.belly);
+  rect(ctx, 10, 10, 12, 12, C.belly);
+  // Belly highlight
+  rect(ctx, 12, 10, 4, 2, C.belly2);
+  rect(ctx, 11, 12, 2, 6, C.belly2);
+
+  // ── Shell (top-down hexagonal plates) ──
+  // Outer shell ring
+  rect(ctx, 11, 9, 10, 14, C.shell1);
+  rect(ctx, 10, 10, 12, 12, C.shell1);
+
+  // Shell plates
+  // Center hex
+  rect(ctx, 13, 12, 6, 8, C.shell2);
+  rect(ctx, 12, 13, 8, 6, C.shell2);
+  // Top plate
+  rect(ctx, 13, 10, 6, 3, C.shell3);
+  rect(ctx, 14, 9,  4, 2, C.shell3);
+  // Bottom plate
+  rect(ctx, 13, 19, 6, 3, C.shell2);
+  // Left plate
+  rect(ctx, 10, 13, 3, 6, C.shell2);
+  // Right plate
+  rect(ctx, 19, 13, 3, 6, C.shell2);
+
+  // Shell highlight
+  rect(ctx, 14, 10, 3, 2, C.glow2);
+  px(ctx, 14, 10, C.white);
+
+  // ── Glowing circuit lines on shell ──
+  // Horizontal glow line
+  rect(ctx, 12, 15, 8, 1, C.glow);
+  // Vertical glow line
+  rect(ctx, 16, 11, 1, 9, C.glow);
+  // Corner dots
+  px(ctx, 13, 12, C.glow);
+  px(ctx, 18, 12, C.glow);
+  px(ctx, 13, 19, C.glow);
+  px(ctx, 18, 19, C.glow);
+  // Hex outline glow
+  px(ctx, 12, 13, C.glow);
+  px(ctx, 12, 18, C.glow);
+  px(ctx, 19, 13, C.glow);
+  px(ctx, 19, 18, C.glow);
+
+  // ── Head ──
+  rect(ctx, 12, 5, 8, 6, C.outline);
+  rect(ctx, 13, 4, 6, 7, C.outline);
+  rect(ctx, 13, 5, 6, 5, C.metal2);
+  rect(ctx, 14, 5, 4, 5, C.metal3);
+  // Head highlight
+  rect(ctx, 14, 5, 2, 2, C.white);
+  // Head bottom (neck)
+  rect(ctx, 13, 9, 6, 2, C.metal1);
+
+  // ── Eyes ──
+  // Left eye
+  rect(ctx, 13, 6, 3, 3, C.outline);
+  rect(ctx, 14, 7, 2, 2, C.eye);
+  px(ctx, 14, 7, C.eyeGlow);
+  // Right eye
+  rect(ctx, 16, 6, 3, 3, C.outline);
+  rect(ctx, 17, 7, 2, 2, C.eye);
+  px(ctx, 17, 7, C.eyeGlow);
+
+  // ── Antenna ──
+  px(ctx, 16, 3, C.outline);
+  px(ctx, 16, 4, C.metal2);
+  px(ctx, 16, 3, C.red);
+  // Blink handled per-frame
+
+  // ── Tail ──
+  rect(ctx, 14, 23, 4, 3, C.outline);
+  rect(ctx, 15, 24, 2, 2, C.metal2);
+
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Per-direction drawing
+// ─────────────────────────────────────────────────────────────
+
+// Facing UP (default)
+function drawUp(ctx, legPhase, blinkOn) {
+  drawTurtleBase(ctx, false, false, legPhase);
+  // Antenna blink
+  px(ctx, 16, 3, blinkOn ? C.red : '#550000');
+  px(ctx, 16, 2, blinkOn ? C.red2 : C.none);
+}
+
+// Facing DOWN (flip vertically)
+function drawDown(ctx, legPhase, blinkOn) {
+  ctx.save();
+  ctx.translate(0, 32);
+  ctx.scale(1, -1);
+  drawTurtleBase(ctx, false, false, legPhase);
+  ctx.restore();
+  // Antenna now at bottom — redraw blink at flipped position
+  px(ctx, 16, 28, blinkOn ? C.red : '#550000');
+  px(ctx, 16, 29, blinkOn ? C.red2 : C.none);
+}
+
+// Facing LEFT
+function drawLeft(ctx, legPhase, blinkOn) {
+  // Rotate 90° CCW: draw up-facing into a temp canvas, then rotate
+  const tmp = document.createElement('canvas');
+  tmp.width = tmp.height = 32;
+  const tc = tmp.getContext('2d');
+  tc.imageSmoothingEnabled = false;
+  drawTurtleBase(tc, false, false, legPhase);
+  tc.fillStyle = blinkOn ? C.red : '#550000';
+  tc.fillRect(16, 3, 1, 1);
+
+  ctx.save();
+  ctx.translate(0, 32);
+  ctx.rotate(-Math.PI / 2);
+  ctx.drawImage(tmp, 0, 0);
+  ctx.restore();
+}
+
+// Facing RIGHT
+function drawRight(ctx, legPhase, blinkOn) {
+  const tmp = document.createElement('canvas');
+  tmp.width = tmp.height = 32;
+  const tc = tmp.getContext('2d');
+  tc.imageSmoothingEnabled = false;
+  drawTurtleBase(tc, false, false, legPhase);
+  tc.fillStyle = blinkOn ? C.red : '#550000';
+  tc.fillRect(16, 3, 1, 1);
+
+  ctx.save();
+  ctx.translate(32, 0);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(tmp, 0, 0);
+  ctx.restore();
+}
+
+// Idle (slight bob — same as up but with glow pulse)
+function drawIdle(ctx, phase, blinkOn) {
+  drawTurtleBase(ctx, false, false, 0);
+  // Glow pulse on shell lines
+  ctx.globalAlpha = 0.4 + phase * 0.4;
+  rect(ctx, 12, 15, 8, 1, C.glow2);
+  rect(ctx, 16, 11, 1, 9, C.glow2);
+  ctx.globalAlpha = 1;
+  // Antenna
+  px(ctx, 16, 3, blinkOn ? C.red : '#550000');
+  px(ctx, 16, 2, blinkOn ? C.red2 : C.none);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Build the sprite sheet: 10 frames × 32px wide, 32px tall
+//  Layout (left→right):
+//   0,1 = Idle frame A, B
+//   2,3 = Up   frame A, B
+//   4,5 = Down frame A, B
+//   6,7 = Left frame A, B
+//   8,9 = Right frame A, B
+// ─────────────────────────────────────────────────────────────
+
+const sheet = document.getElementById('sheet');
+const sctx  = sheet.getContext('2d');
+sctx.imageSmoothingEnabled = false;
+
+function buildSheet() {
+  sctx.clearRect(0, 0, 320, 64);
+
+  const frames = [
+    // Idle A
+    (ctx) => drawIdle(ctx, 0, true),
+    // Idle B (glow pulse, blink off)
+    (ctx) => drawIdle(ctx, 1, false),
+    // Up A
+    (ctx) => drawUp(ctx, 0, true),
+    // Up B
+    (ctx) => drawUp(ctx, 1, false),
+    // Down A
+    (ctx) => drawDown(ctx, 0, true),
+    // Down B
+    (ctx) => drawDown(ctx, 1, false),
+    // Left A
+    (ctx) => drawLeft(ctx, 0, true),
+    // Left B
+    (ctx) => drawLeft(ctx, 1, false),
+    // Right A
+    (ctx) => drawRight(ctx, 0, true),
+    // Right B
+    (ctx) => drawRight(ctx, 1, false),
+  ];
+
+  frames.forEach((fn, i) => {
+    const tmp = document.createElement('canvas');
+    tmp.width = tmp.height = 32;
+    const tc = tmp.getContext('2d');
+    tc.imageSmoothingEnabled = false;
+    fn(tc);
+    sctx.drawImage(tmp, i * 32, 0);
+  });
+}
+
+buildSheet();
+
+// ─────────────────────────────────────────────────────────────
+//  Preview individual frames
+// ─────────────────────────────────────────────────────────────
+const labels = ['Idle A','Idle B','Up A','Up B','Down A','Down B','Left A','Left B','Right A','Right B'];
+const previews = document.getElementById('previews');
+for (let i = 0; i < 10; i++) {
+  const wrap = document.createElement('div');
+  const lbl  = document.createElement('label');
+  lbl.textContent = labels[i];
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  c.style.width = c.style.height = '64px';
+  c.style.imageRendering = 'pixelated';
+  const cc = c.getContext('2d');
+  cc.imageSmoothingEnabled = false;
+  cc.drawImage(sheet, i * 32, 0, 32, 32, 0, 0, 32, 32);
+  wrap.appendChild(lbl);
+  wrap.appendChild(c);
+  previews.appendChild(wrap);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Download
+// ─────────────────────────────────────────────────────────────
+function download() {
+  const link = document.createElement('a');
+  link.download = 'turtle_sprite.png';
+  link.href = sheet.toDataURL('image/png');
+  link.click();
+}
+</script>
+</body>
+</html>

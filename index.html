@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RoboShell Savior</title>
+  <link rel="icon" type="image/png" href="assets/web icon/turtel game icon.png">
+  <link rel="stylesheet" href="style.css" />
+  <!-- Professional game title font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Intro video screen — shown first on load -->
+  <div id="intro-screen">
+    <canvas id="intro-canvas"></canvas>
+    <video id="intro-video" src="assets/video/intro.mp4" playsinline style="display:none"></video>
+    <button id="intro-skip">SKIP</button>
+  </div>
+
+  <div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div id="ui-overlay">
+      <div id="hud-right">
+        <div id="score-display">SCORE: <span id="score">0</span></div>
+        <div id="hiscore-display">BEST: <span id="hiscore">0</span></div>
+      </div>
+    </div>
+
+    <!-- Hamburger button — top right, only during gameplay -->
+    <button id="pause-btn" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+
+    <!-- Intro replay button — top left, only on main menu -->
+    <button id="intro-replay-btn" aria-label="Watch Intro">▶ INTRO</button>
+  </div>
+
+  <!-- Loading screen -->
+  <div id="loading-screen">
+    <div id="loading-content">
+      <div id="loading-title">LOADING</div>
+      <div id="loading-bar-wrap">
+        <div id="loading-bar"></div>
+      </div>
+      <div id="loading-label">Preparing the ocean...</div>
+    </div>
+  </div>
+  <div id="pause-overlay">
+    <div id="pause-panel">
+      <button class="pause-menu-btn" id="pm-resume">RESUME</button>
+      <button class="pause-menu-btn" id="pm-newgame">NEW GAME</button>
+      <button class="pause-menu-btn" id="pm-exit">EXIT</button>
+    </div>
+  </div>
+
+  <!-- Game Over screen -->
+  <div id="gameover-screen" class="screen">
+    <div class="screen-content">
+      <h1 id="gameover-title"></h1>
+      <p id="final-score-text">Score: 0</p>
+      <p id="final-hi-text" style="color:#ffdd44;font-size:1rem;margin:4px 0;"></p>
+      <p id="final-wave-text">Bosses Defeated: 0</p>
+      <p class="eco-message" id="eco-msg"></p>
+      <button id="restart-btn" class="btn">RESTART</button>
+    </div>
+  </div>
+
+  <!-- Background music — plays only during gameplay -->
+  <audio id="bgm" src="assets/music/bgm.mp3" loop preload="auto"></audio>
+  <!-- Game over music — plays only on game over screen, loops with 2s gap -->
+  <audio id="bgm-gameover" src="assets/music/gameover.mp3" preload="auto"></audio>
+
+  <script>
+    const _canvas = document.getElementById('gameCanvas');
+    function resizeCanvas() {
+      _canvas.width  = window.innerWidth;
+      _canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // Surface any JS errors visibly
+    window.addEventListener('error', (e) => {
+      document.body.style.background = '#111';
+      const div = document.createElement('div');
+      div.style.cssText = 'position:fixed;top:20px;left:20px;right:20px;background:#300;color:#f88;font:14px monospace;padding:16px;border:2px solid #f44;border-radius:6px;z-index:9999;white-space:pre-wrap;';
+      div.textContent = '❌ JS ERROR:\n' + e.message + '\n\nFile: ' + e.filename + '\nLine: ' + e.lineno;
+      document.body.appendChild(div);
+    });
+
+    // ── Intro video logic ──
+    const introScreen = document.getElementById('intro-screen');
+    const introVideo  = document.getElementById('intro-video');
+    const introCanvas = document.getElementById('intro-canvas');
+    const introCtx    = introCanvas.getContext('2d');
+    const introSkip   = document.getElementById('intro-skip');
+
+    // Crop: draw only the top 90% of the video to remove the white bar at the bottom
+    const CROP = 0.90;
+    let   introRaf = null;
+
+    function resizeIntroCanvas() {
+      introCanvas.width  = window.innerWidth;
+      introCanvas.height = window.innerHeight;
+    }
+    resizeIntroCanvas();
+    window.addEventListener('resize', resizeIntroCanvas);
+
+    function renderIntroFrame() {
+      if (introVideo.paused && introVideo.ended) return;
+      const vw = introVideo.videoWidth;
+      const vh = introVideo.videoHeight;
+      if (vw && vh) {
+        const cw = introCanvas.width;
+        const ch = introCanvas.height;
+        // Source: full width, top CROP% of video height (cuts white bar)
+        const srcH = vh * CROP;
+        // Destination: fill canvas maintaining aspect ratio (cover)
+        const scale = Math.max(cw / vw, ch / srcH);
+        const dw = vw * scale;
+        const dh = srcH * scale;
+        const dx = (cw - dw) / 2;
+        const dy = (ch - dh) / 2;
+        introCtx.fillStyle = '#000';
+        introCtx.fillRect(0, 0, cw, ch);
+        introCtx.drawImage(introVideo, 0, 0, vw, srcH, dx, dy, dw, dh);
+      }
+      introRaf = requestAnimationFrame(renderIntroFrame);
+    }
+
+    function dismissIntro() {
+      if (introRaf) { cancelAnimationFrame(introRaf); introRaf = null; }
+      introVideo.pause();
+      introScreen.classList.add('fade-out');
+      setTimeout(() => {
+        introScreen.classList.add('hidden');
+        // Show the intro replay button on the main menu
+        const replayBtn = document.getElementById('intro-replay-btn');
+        if (replayBtn) replayBtn.classList.add('visible');
+      }, 650);
+    }
+
+    introVideo.addEventListener('ended', dismissIntro);
+    introSkip.addEventListener('click', (e) => {
+      e.stopPropagation(); // prevent click bubbling to window/menu handlers
+      dismissIntro();
+    });
+
+    introVideo.muted = false;
+    introVideo.play().then(() => {
+      renderIntroFrame();
+    }).catch(() => {
+      introVideo.muted = true;
+      introVideo.play().then(() => renderIntroFrame()).catch(() => dismissIntro());
+    });
+  </script>
+  <script src="src/maki.js"></script>
+  <script src="src/loader.js"></script>
+  <script src="src/background.js"></script>
+  <script src="src/assets.js"></script>
+  <script src="src/entities.js"></script>
+  <script src="src/game.js"></script>
+</body>
+</html>
