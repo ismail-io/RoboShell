@@ -1,11 +1,15 @@
-/* ============================================
-   Turtle Savior — Global Styles (Fullscreen)
-   ============================================ */
+/* ============================================================
+   RoboShell Savior — Global Styles
+   Designed for fullscreen desktop & mobile (iOS/Android)
+   ============================================================ */
 
-* {
+/* ── Reset ── */
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
 }
 
 html, body {
@@ -14,6 +18,13 @@ html, body {
   overflow: hidden;
   background: #000;
   font-family: 'Courier New', Courier, monospace;
+  /* Prevent iOS rubber-band scroll */
+  overscroll-behavior: none;
+  /* Full-bleed under notch / status bar */
+  padding: env(safe-area-inset-top, 0)
+           env(safe-area-inset-right, 0)
+           env(safe-area-inset-bottom, 0)
+           env(safe-area-inset-left, 0);
 }
 
 /* ── Game Container ── */
@@ -30,315 +41,71 @@ html, body {
   height: 100vh;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  touch-action: none;   /* prevent browser scroll/zoom on touch */
-  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
 }
 
-/* ── HUD Overlay ── */
-#ui-overlay {
-  position: fixed;
-  top: 12px;
-  left: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  pointer-events: none;
-  z-index: 5;
-}
-
-#hud-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-}
-
-#score-display {
-  color: #00ffcc;
-  font-size: 18px;
-  font-weight: bold;
-  text-shadow: 0 0 8px #00ffcc;
-  background: rgba(0, 0, 0, 0.55);
-  padding: 6px 14px;
-  border-radius: 4px;
-  border: 1px solid #00ffcc44;
-}
-
-#hiscore-display {
-  color: #ffdd44;
-  font-size: 14px;
-  font-weight: bold;
-  text-shadow: 0 0 8px #ffdd44;
-  background: rgba(0, 0, 0, 0.55);
-  padding: 4px 14px;
-  border-radius: 4px;
-  border: 1px solid #ffdd4444;
-}
-
-/* ── Screens (game over only) ── */
-.screen {
+/* ════════════════════════════════════════════
+   LOADING SCREEN
+   Canvas fills the div; JS animates everything.
+   z-index: 900
+   ════════════════════════════════════════════ */
+#loading-screen {
   position: fixed;
   inset: 0;
-  display: none;
-  justify-content: center;
-  align-items: center;
-  background: rgba(0, 0, 0, 0.92);
-  z-index: 100;
-}
-
-.screen.active {
-  display: flex;
-}
-
-.screen-content {
-  text-align: center;
-  color: #e0f7ff;
-  max-width: 480px;
-  width: 90%;
-  padding: 40px 30px;
-}
-
-/* GAME OVER big yellow title */
-.screen-content h1 {
-  font-size: 5.5rem;
-  font-weight: 900;
-  color: #ffe600;
-  text-shadow: 0 0 24px #ffcc00, 0 0 60px #ff990088;
-  letter-spacing: 10px;
-  margin-bottom: 32px;
-  min-height: 6rem;
-  font-family: 'Courier New', Courier, monospace;
-  text-transform: uppercase;
-}
-
-/* Blinking cursor after typing */
-.screen-content h1::after {
-  content: '|';
-  animation: blink-cursor 0.75s step-end infinite;
-  color: #ffe600;
-}
-
-/* Hide cursor once typing is done */
-.screen-content h1.done::after {
-  display: none;
-}
-
-@keyframes blink-cursor {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
-}
-
-/* Stats — fade in after title */
-#final-score-text,
-#final-wave-text {
-  font-size: 1.2rem;
-  margin: 8px 0;
-  color: #ffdd88;
-  opacity: 0;
-  transition: opacity 0.6s ease;
-}
-
-#final-hi-text {
-  opacity: 0;
-  transition: opacity 0.6s ease;
-}
-
-.eco-message {
-  font-size: 1rem;
-  color: #88ffcc;
-  margin: 20px 0 28px;
-  font-style: italic;
-  opacity: 0;
-  transition: opacity 1.2s ease;
-}
-
-/* Reveal helper */
-.reveal {
-  opacity: 1 !important;
-}
-
-/* ── Button ── */
-.btn {
-  background: transparent;
-  color: #ffe600;
-  border: 3px solid #ffe600;
-  padding: 14px 48px;
-  font-size: 1.3rem;
-  font-family: 'Courier New', Courier, monospace;
-  font-weight: 900;
-  letter-spacing: 4px;
-  text-transform: uppercase;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s, transform 0.1s, box-shadow 0.2s;
-  box-shadow: 0 0 18px #ffe60066;
-}
-
-.btn:hover {
-  background: #ffe600;
-  color: #000;
-  transform: scale(1.06);
-  box-shadow: 0 0 32px #ffe600aa;
-}
-
-.btn:active {
-  transform: scale(0.97);
-}
-
-/* ══════════════════════════════════════════
-   Hamburger button — top right
-   ══════════════════════════════════════════ */
-#pause-btn {
-  position: fixed;
-  top: 14px;
-  right: 18px;
-  width: 42px;
-  height: 42px;
-  background: rgba(0, 0, 0, 0.6);
-  border: 2px solid #00ffcc66;
-  border-radius: 6px;
-  cursor: pointer;
-  display: none;          /* shown only during gameplay via JS */
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 5px;
-  padding: 0;
-  z-index: 50;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-#pause-btn.visible {
-  display: flex;
-}
-
-#pause-btn span {
-  display: block;
-  width: 22px;
-  height: 3px;
-  background: #00ffcc;
-  border-radius: 2px;
-  transition: background 0.15s;
-}
-
-#pause-btn:hover {
-  background: rgba(0, 255, 204, 0.15);
-  border-color: #00ffcc;
-}
-
-#pause-btn:hover span {
-  background: #ffffff;
-}
-
-/* ══════════════════════════════════════════
-   Pause overlay + panel
-   ══════════════════════════════════════════ */
-#pause-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 8, 30, 0.78);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 200;
+  background-color: #000;
+  z-index: 900;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.4s ease;
+  overflow: hidden;
 }
 
-#pause-overlay.open {
+#loading-screen.active {
   opacity: 1;
   pointer-events: all;
 }
 
-#pause-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  background: rgba(0, 12, 40, 0.96);
-  border: 2px solid #00ffcc55;
-  border-radius: 10px;
-  padding: 36px 44px 32px;
-  box-shadow: 0 0 40px #00ffcc22, inset 0 0 30px rgba(0,255,204,0.04);
-  transform: scale(0.88) translateY(10px);
-  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
-  opacity: 0;
-
-  /* subtle floating animation when open */
-  animation: none;
-}
-
-#pause-overlay.open #pause-panel {
-  transform: scale(1) translateY(0);
-  opacity: 1;
-  animation: panel-float 3s ease-in-out infinite;
-}
-
-@keyframes panel-float {
-  0%, 100% { transform: scale(1) translateY(0px);  }
-  50%       { transform: scale(1) translateY(-5px); }
-}
-
-#pause-title {
-  font-size: 1.6rem;
-  font-weight: 900;
-  letter-spacing: 8px;
-  color: #00ffcc;
-  text-shadow: 0 0 16px #00ffcc, 0 0 32px #00ffcc44;
-  margin-bottom: 8px;
-  font-family: 'Courier New', Courier, monospace;
-}
-
-/* Pause menu buttons */
-.pause-menu-btn {
-  width: 200px;
-  padding: 13px 0;
+/* Canvas inserted by LoadingScreen.init() — transparent so CSS bg shows through */
+/* Slight dark overlay baked into canvas _drawBackground() so text is readable */
+#ls-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
   background: transparent;
-  color: #00ffcc;
-  border: 2px solid #00ffcc55;
-  border-radius: 6px;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 1rem;
-  font-weight: 900;
-  letter-spacing: 4px;
-  text-transform: uppercase;
+}
+
+/* ════════════════════════════════════════════
+   TAP TO START SCREEN
+   Hidden by default; JS shows it after loading.
+   Canvas inside draws everything — no HTML UI.
+   z-index: 2000
+   ════════════════════════════════════════════ */
+#start-splash {
+  position: fixed;
+  inset: 0;
+  display: none;          /* shown by JS after loading completes */
+  pointer-events: none;
+  z-index: 2000;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s,
-              transform 0.1s, box-shadow 0.15s;
-  box-shadow: 0 0 0 transparent;
+  overflow: hidden;
 }
 
-.pause-menu-btn:hover {
-  background: rgba(0, 255, 204, 0.12);
-  border-color: #00ffcc;
-  color: #ffffff;
-  transform: scale(1.04);
-  box-shadow: 0 0 18px #00ffcc44;
+#splash-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-.pause-menu-btn:active {
-  transform: scale(0.97);
-}
-
-/* Exit button gets a red tint */
-#pm-exit {
-  color: #ff5544;
-  border-color: #ff554455;
-}
-
-#pm-exit:hover {
-  background: rgba(255, 85, 68, 0.12);
-  border-color: #ff5544;
-  color: #ffffff;
-  box-shadow: 0 0 18px #ff554444;
-}
-
-/* ══════════════════════════════════════════
-   Intro video screen
-   ══════════════════════════════════════════ */
+/* ════════════════════════════════════════════
+   INTRO VIDEO SCREEN
+   z-index: 1000
+   ════════════════════════════════════════════ */
 #intro-screen {
   position: fixed;
   inset: 0;
@@ -362,7 +129,7 @@ html, body {
 }
 
 #intro-video {
-  display: none; /* rendered via canvas instead */
+  display: none; /* drawn via canvas instead */
 }
 
 #intro-canvas {
@@ -375,36 +142,44 @@ html, body {
 
 #intro-skip {
   position: absolute;
-  bottom: 32px;
-  right: 32px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 8px 22px;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 0.85rem;
-  font-weight: bold;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  border-radius: 4px;
+  bottom: max(28px, env(safe-area-inset-bottom, 28px));
+  right: max(28px, env(safe-area-inset-right, 28px));
+  width: 52px;
+  height: 52px;
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(0, 255, 136, 0.85);
+  border: 2px solid rgba(0, 255, 136, 0.45);
+  border-radius: 50%;
+  font-size: 1.5rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.15s;
+  box-shadow: 0 0 14px rgba(0, 255, 136, 0.20);
+  /* Large tap target on mobile */
+  min-width: 52px;
+  min-height: 52px;
 }
 
-#intro-skip:hover {
-  color: #fff;
-  border-color: #fff;
+#intro-skip:hover, #intro-skip:active {
+  background: rgba(0, 255, 136, 0.18);
+  border-color: #00ff88;
+  color: #ffffff;
+  transform: scale(1.12);
+  box-shadow: 0 0 22px rgba(0, 255, 136, 0.45);
 }
 
 /* ── Intro replay button — top left on main menu ── */
 #intro-replay-btn {
   position: fixed;
-  top: 14px;
-  left: 18px;
+  top: max(14px, env(safe-area-inset-top, 14px));
+  left: max(18px, env(safe-area-inset-left, 18px));
   background: transparent;
   color: rgba(0, 255, 204, 0.7);
   border: 1px solid rgba(0, 255, 204, 0.35);
-  padding: 8px 16px;
+  padding: 8px 14px;
   font-family: 'Courier New', Courier, monospace;
   font-size: 0.78rem;
   font-weight: bold;
@@ -414,138 +189,399 @@ html, body {
   cursor: pointer;
   display: none;
   z-index: 50;
+  min-height: 40px;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
 
-#intro-replay-btn.visible {
-  display: block;
-}
+#intro-replay-btn.visible { display: block; }
 
-#intro-replay-btn:hover {
+#intro-replay-btn:hover, #intro-replay-btn:active {
   color: #fff;
   border-color: #00ffcc;
   background: rgba(0, 255, 204, 0.1);
 }
 
-/* ══════════════════════════════════════════
-   Loading Screen
-   ══════════════════════════════════════════ */
-#loading-screen {
+/* ════════════════════════════════════════════
+   HUD OVERLAY
+   ════════════════════════════════════════════ */
+#ui-overlay {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 12px));
+  left: max(20px, env(safe-area-inset-left, 20px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  pointer-events: none;
+  z-index: 5;
+}
+
+#hud-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+#score-display {
+  color: #00ffcc;
+  font-size: clamp(14px, 2.5vw, 18px);
+  font-weight: bold;
+  text-shadow: 0 0 8px #00ffcc;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid #00ffcc44;
+}
+
+#hiscore-display {
+  color: #ffdd44;
+  font-size: clamp(12px, 2vw, 14px);
+  font-weight: bold;
+  text-shadow: 0 0 8px #ffdd44;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 4px 14px;
+  border-radius: 4px;
+  border: 1px solid #ffdd4444;
+}
+
+/* ════════════════════════════════════════════
+   HAMBURGER PAUSE BUTTON — top right
+   ════════════════════════════════════════════ */
+#pause-btn {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top, 14px));
+  right: max(18px, env(safe-area-inset-right, 18px));
+  width: 44px;
+  height: 44px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid #00ffcc66;
+  border-radius: 6px;
+  cursor: pointer;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  z-index: 50;
+  transition: background 0.15s, border-color 0.15s;
+  touch-action: manipulation;
+}
+
+#pause-btn.visible { display: flex; }
+
+#pause-btn span {
+  display: block;
+  width: 22px;
+  height: 3px;
+  background: #00ffcc;
+  border-radius: 2px;
+}
+
+#pause-btn:hover, #pause-btn:active {
+  background: rgba(0, 255, 204, 0.15);
+  border-color: #00ffcc;
+}
+
+/* ════════════════════════════════════════════
+   PAUSE OVERLAY
+   ════════════════════════════════════════════ */
+#pause-overlay {
   position: fixed;
   inset: 0;
-  background: #000d1a;
+  background: rgba(0, 8, 30, 0.78);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 500;
+  z-index: 200;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.2s ease;
 }
 
-#loading-screen.active {
+#pause-overlay.open {
   opacity: 1;
   pointer-events: all;
 }
 
-#loading-content {
+#pause-panel {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 14px;
+  background: rgba(0, 12, 40, 0.97);
+  border: 2px solid #00ffcc55;
+  border-radius: 10px;
+  padding: 36px 44px 32px;
+  box-shadow: 0 0 40px #00ffcc22;
+  transform: scale(0.88) translateY(10px);
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s;
+  opacity: 0;
+  /* Don't let the panel clip on small phones */
+  max-width: calc(100vw - 32px);
+}
+
+#pause-overlay.open #pause-panel {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+  animation: panel-float 3s ease-in-out infinite;
+}
+
+@keyframes panel-float {
+  0%, 100% { transform: scale(1) translateY(0px);  }
+  50%       { transform: scale(1) translateY(-5px); }
+}
+
+.pause-menu-btn {
+  width: clamp(160px, 50vw, 200px);
+  padding: 13px 0;
+  background: transparent;
+  color: #00ffcc;
+  border: 2px solid #00ffcc55;
+  border-radius: 6px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: clamp(0.85rem, 2.5vw, 1rem);
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.pause-menu-btn:hover, .pause-menu-btn:active {
+  background: rgba(0, 255, 204, 0.12);
+  border-color: #00ffcc;
+  color: #fff;
+  transform: scale(1.04);
+}
+
+#pm-exit { color: #ff5544; border-color: #ff554455; }
+#pm-exit:hover, #pm-exit:active {
+  background: rgba(255, 85, 68, 0.12);
+  border-color: #ff5544;
+  color: #fff;
+}
+
+/* ════════════════════════════════════════════
+   GAME OVER SCREEN
+   ════════════════════════════════════════════ */
+.screen {
+  position: fixed;
+  inset: 0;
+  display: none;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.92);
+  z-index: 100;
+}
+
+.screen.active { display: flex; }
+
+.screen-content {
+  text-align: center;
+  color: #e0f7ff;
+  max-width: 480px;
+  width: 90%;
+  padding: 32px 24px;
+}
+
+.screen-content h1 {
+  font-size: clamp(2.8rem, 8vw, 5.5rem);
+  font-weight: 900;
+  color: #ffe600;
+  text-shadow: 0 0 24px #ffcc00, 0 0 60px #ff990088;
+  letter-spacing: clamp(4px, 1.5vw, 10px);
+  margin-bottom: 28px;
+  min-height: 4rem;
+  font-family: 'Courier New', Courier, monospace;
+  text-transform: uppercase;
+  word-break: break-word;
+}
+
+/* Blinking cursor during typing */
+.screen-content h1::after {
+  content: '|';
+  animation: blink-cursor 0.75s step-end infinite;
+  color: #ffe600;
+}
+.screen-content h1.done::after { display: none; }
+
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+#final-score-text, #final-wave-text {
+  font-size: clamp(1rem, 3vw, 1.2rem);
+  margin: 8px 0;
+  color: #ffdd88;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+#final-hi-text {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.eco-message {
+  font-size: clamp(0.85rem, 2.5vw, 1rem);
+  color: #88ffcc;
+  margin: 18px 0 24px;
+  font-style: italic;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+.reveal { opacity: 1 !important; }
+
+/* ── Restart button ── */
+.btn {
+  background: transparent;
+  color: #ffe600;
+  border: 3px solid #ffe600;
+  padding: 14px 40px;
+  font-size: clamp(1rem, 3vw, 1.3rem);
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.2s, color 0.2s, transform 0.1s, box-shadow 0.2s;
+  box-shadow: 0 0 18px #ffe60066;
+  min-height: 48px;
+}
+
+.btn:hover, .btn:active {
+  background: #ffe600;
+  color: #000;
+  transform: scale(1.04);
+  box-shadow: 0 0 32px #ffe600aa;
+}
+
+/* ════════════════════════════════════════════
+   HOW TO PLAY — Mobile first-run tutorial overlay
+   z-index: 3000 (above everything)
+   ════════════════════════════════════════════ */
+#howtoplay-overlay {
+  display: none;            /* shown by JS on first touch-device play */
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 6, 20, 0.88);
+  z-index: 3000;
+  justify-content: center;
+  align-items: center;
+  padding: env(safe-area-inset-top, 16px)
+           env(safe-area-inset-right, 16px)
+           env(safe-area-inset-bottom, 16px)
+           env(safe-area-inset-left, 16px);
+  animation: htp-in 0.35s ease both;
+}
+
+#howtoplay-overlay.htp-out {
+  animation: htp-fade-out 0.4s ease forwards;
+}
+
+@keyframes htp-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+@keyframes htp-fade-out {
+  to { opacity: 0; transform: scale(0.94); }
+}
+
+#howtoplay-panel {
+  background: rgba(0, 14, 36, 0.97);
+  border: 2px solid rgba(0, 200, 180, 0.55);
+  border-radius: 14px;
+  padding: 28px 24px 24px;
+  max-width: min(480px, calc(100vw - 32px));
+  width: 100%;
+  box-shadow: 0 0 40px rgba(0, 200, 255, 0.15);
+  display: flex;
+  flex-direction: column;
   gap: 18px;
 }
 
-#loading-title {
-  font-family: 'Orbitron', 'Courier New', monospace;
-  font-size: 2.2rem;
-  font-weight: 900;
-  letter-spacing: 10px;
-  color: #00eeff;
-  text-shadow: 0 0 20px #00ccff, 0 0 40px #00ccff44;
-  animation: loading-pulse 1s ease-in-out infinite;
-}
-
-@keyframes loading-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.5; }
-}
-
-#loading-bar-wrap {
-  width: 280px;
-  height: 6px;
-  background: rgba(0, 200, 255, 0.15);
-  border-radius: 3px;
-  overflow: hidden;
-  border: 1px solid rgba(0, 200, 255, 0.3);
-}
-
-#loading-bar {
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, #00ccff, #00eeff, #ffffff);
-  border-radius: 3px;
-  box-shadow: 0 0 10px #00ccff;
-  transition: width 0.1s linear;
-}
-
-#loading-label {
-  font-family: 'Courier New', monospace;
-  font-size: 0.75rem;
-  letter-spacing: 3px;
-  color: rgba(0, 200, 255, 0.6);
-  text-transform: uppercase;
-}
-
-/* ══════════════════════════════════════════
-   Click-to-start splash (needed for audio autoplay)
-   ══════════════════════════════════════════ */
-#start-splash {
-  position: fixed;
-  inset: 0;
-  background: #000;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-  cursor: pointer;
-  transition: opacity 0.5s ease;
-}
-
-#start-splash.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-#start-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 32px;
-}
-
-#start-title {
-  font-family: 'Orbitron', 'Courier New', monospace;
-  font-size: clamp(1.8rem, 5vw, 3.5rem);
-  font-weight: 900;
-  letter-spacing: 8px;
-  color: #00eeff;
-  text-shadow: 0 0 30px #00ccff, 0 0 60px #00ccff44;
+#howtoplay-title {
   text-align: center;
-}
-
-#start-btn {
   font-family: 'Orbitron', 'Courier New', monospace;
-  font-size: clamp(0.9rem, 2vw, 1.2rem);
-  font-weight: 700;
-  letter-spacing: 5px;
-  color: #ffffff;
-  border: 2px solid rgba(255,255,255,0.4);
-  padding: 14px 40px;
-  border-radius: 4px;
-  animation: splash-pulse 1.4s ease-in-out infinite;
+  font-size: clamp(1.1rem, 5vw, 1.5rem);
+  font-weight: 900;
+  color: #00eeff;
+  text-shadow: 0 0 14px #00ccff;
+  letter-spacing: 4px;
+  margin: 0 0 4px;
 }
 
-@keyframes splash-pulse {
-  0%, 100% { opacity: 1; border-color: rgba(0,238,255,0.8); color: #00eeff; }
-  50%       { opacity: 0.5; border-color: rgba(0,238,255,0.2); color: #aaeeff; }
+.htp-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(0, 30, 55, 0.6);
+  border: 1px solid rgba(0, 150, 180, 0.25);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.htp-icon {
+  font-size: clamp(1.6rem, 6vw, 2.2rem);
+  flex-shrink: 0;
+  width: 44px;
+  text-align: center;
+  /* Prevent emoji from being cut off on Samsung Internet */
+  line-height: 1.2;
+}
+
+.htp-desc {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: clamp(0.78rem, 2.8vw, 0.92rem);
+  color: #aaddee;
+  line-height: 1.55;
+}
+
+.htp-desc strong {
+  color: #00ffcc;
+  font-size: 1.05em;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.htp-desc em {
+  color: #ffdd44;
+  font-style: normal;
+  font-weight: bold;
+}
+
+#howtoplay-btn {
+  margin-top: 4px;
+  width: 100%;
+  padding: 16px 0;
+  background: transparent;
+  color: #00ffcc;
+  border: 2.5px solid #00ffcc;
+  border-radius: 8px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: clamp(0.9rem, 3vw, 1.05rem);
+  font-weight: 900;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  /* Large tap target for mobile */
+  min-height: 52px;
+  touch-action: manipulation;
+  transition: background 0.2s, color 0.2s, transform 0.1s, box-shadow 0.2s;
+  box-shadow: 0 0 18px rgba(0, 255, 204, 0.2);
+}
+
+#howtoplay-btn:hover,
+#howtoplay-btn:active {
+  background: #00ffcc;
+  color: #000;
+  transform: scale(1.03);
+  box-shadow: 0 0 28px rgba(0, 255, 204, 0.5);
 }

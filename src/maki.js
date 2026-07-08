@@ -71,6 +71,11 @@ const Maki = (() => {
     _fireId:     null,              // touch identifier for fire button
     _joystickOrigin: { x: 0, y: 0 },
 
+    // ── Touch auto-enable fallback ──
+    // If _isTouchDevice detection failed, the first real touch on the canvas
+    // upgrades the control mode to 'touch' automatically.
+    _touchAutoUpgraded: false,
+
     init() {
       // ── Keyboard ──
       window.addEventListener('keydown', e => {
@@ -93,6 +98,20 @@ const Maki = (() => {
         canvas.addEventListener('touchend',    e => this._onTouchEnd(e),    { passive: false });
         canvas.addEventListener('touchcancel', e => this._onTouchEnd(e),    { passive: false });
       }
+
+      // ── Pinch-zoom prevention ──
+      // Blocks multi-touch zoom gestures that the viewport meta alone may not catch
+      // on some older Android WebViews and Samsung Internet.
+      document.addEventListener('touchstart', e => {
+        if (e.touches.length > 1) e.preventDefault();
+      }, { passive: false });
+      document.addEventListener('touchmove', e => {
+        if (e.touches.length > 1) e.preventDefault();
+      }, { passive: false });
+      // Block gesture events (iOS Safari double-tap zoom fallback)
+      document.addEventListener('gesturestart',  e => e.preventDefault(), { passive: false });
+      document.addEventListener('gesturechange', e => e.preventDefault(), { passive: false });
+      document.addEventListener('gestureend',    e => e.preventDefault(), { passive: false });
     },
 
     // ── Touch helpers ──
@@ -103,6 +122,21 @@ const Maki = (() => {
 
     _onTouchStart(e) {
       e.preventDefault();
+
+      // ── Auto-upgrade to touch mode on first real touch ──
+      // Handles devices where _isTouchDevice detection returned false
+      // (e.g. some Android Chrome versions, desktop with touch screen).
+      if (!this._touchAutoUpgraded && window._controlMode !== 'touch') {
+        this._touchAutoUpgraded = true;
+        window._controlMode = 'touch';
+        // Persist so settings panel stays in sync
+        try {
+          const saved = JSON.parse(localStorage.getItem('roboShellSettings') || '{}');
+          saved.controlMode = 'touch';
+          localStorage.setItem('roboShellSettings', JSON.stringify(saved));
+        } catch (_) {}
+      }
+
       // Only process joystick/fire touch when touch mode is active
       if (window._controlMode !== 'touch') return;
       for (const t of e.changedTouches) {
@@ -214,6 +248,43 @@ const Maki = (() => {
       this.canvas = canvasEl;
       this.ctx = canvasEl.getContext('2d');
       this.ctx.imageSmoothingEnabled = false;
+
+      // Read iOS/Android safe-area insets once after layout is ready
+      // These are used by drawTouchControls to avoid the home indicator
+      this._safeBottom = 0;
+      this._safeLeft   = 0;
+      this._safeRight  = 0;
+      this._safeTop    = 0;
+      this._readSafeArea();
+      window.addEventListener('resize', () => this._readSafeArea());
+    },
+
+    /** Read CSS env() safe-area insets via a temporary element */
+    _readSafeArea() {
+      try {
+        const el = document.createElement('div');
+        el.style.cssText =
+          'position:fixed;top:env(safe-area-inset-top,0px);' +
+          'left:env(safe-area-inset-left,0px);' +
+          'right:env(safe-area-inset-right,0px);' +
+          'bottom:env(safe-area-inset-bottom,0px);' +
+          'pointer-events:none;visibility:hidden;';
+        document.body.appendChild(el);
+        const cs = getComputedStyle(el);
+        // parseInt returns 0 for "0px" and the correct pixel value otherwise
+        this._safeTop    = parseInt(cs.top)    || 0;
+        this._safeBottom = parseInt(cs.bottom) || 0;
+        this._safeLeft   = parseInt(cs.left)   || 0;
+        this._safeRight  = parseInt(cs.right)  || 0;
+        document.body.removeChild(el);
+        // Guarantee a minimum bottom clearance on phones so the joystick and
+        // fire button never land under Android's gesture navigation bar or
+        // the iOS home indicator.  34px covers iPhone X+ home indicator;
+        // we use 44px as a safe universal floor for both platforms.
+        if (this._safeBottom < 44 && window._isTouchDevice) {
+          this._safeBottom = 44;
+        }
+      } catch (e) { /* ignore */ }
     },
 
     get width()  { return this.canvas.width; },
@@ -297,16 +368,31 @@ const Maki = (() => {
     /**
      * Draw on-screen touch controls (joystick + fire button).
      * Call once per frame from the game scene draw method.
-     * Only renders when a touch device is detected or touch is active.
+     * Controls are inset from the safe area so they don't overlap
+     * the iOS home indicator or Android nav bar.
      */
     drawTouchControls(inputState) {
       const ctx = this.ctx;
       const W   = this.width;
       const H   = this.height;
 
+      // Use cached safe-area insets (updated on resize via _readSafeArea).
+      // These correctly account for iPhone notch/home bar and Android nav bar.
+      const safeBottom = MakiRenderer._safeBottom || 44;
+      const safeLeft   = MakiRenderer._safeLeft   || 0;
+      const safeRight  = MakiRenderer._safeRight  || 0;
+
       // ── Joystick (bottom-left) ──
-      const jcx = 90;
-      const jcy = H - 90;
+      // MARGIN from the safe edge so controls are always fully on-screen.
+      const MARGIN  = 80;
+      const baseJcx = MARGIN + safeLeft;
+      const baseJcy = H - MARGIN - safeBottom;
+      const jcx = inputState.joystickActive
+        ? Math.round(inputState.joystickOrigin.x)
+        : baseJcx;
+      const jcy = inputState.joystickActive
+        ? Math.round(inputState.joystickOrigin.y)
+        : baseJcy;
       const outerR = 52;
       const innerR = 26;
 
@@ -335,18 +421,18 @@ const Maki = (() => {
       ctx.stroke();
 
       // Directional arrows hint
-      ctx.fillStyle = 'rgba(0,255,204,0.3)';
-      ctx.font      = '14px sans-serif';
-      ctx.textAlign = 'center';
+      ctx.fillStyle    = 'rgba(0,255,204,0.3)';
+      ctx.font         = '14px sans-serif';
+      ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('▲', jcx,          jcy - outerR - 10);
-      ctx.fillText('▼', jcx,          jcy + outerR + 10);
+      ctx.fillText('▲', jcx,               jcy - outerR - 10);
+      ctx.fillText('▼', jcx,               jcy + outerR + 10);
       ctx.fillText('◀', jcx - outerR - 10, jcy);
       ctx.fillText('▶', jcx + outerR + 10, jcy);
 
       // ── Fire button (bottom-right) ──
-      const fcx = W - 90;
-      const fcy = H - 90;
+      const fcx   = W - MARGIN - safeRight;
+      const fcy   = H - MARGIN - safeBottom;
       const fireR = 44;
 
       ctx.beginPath();
@@ -362,9 +448,9 @@ const Maki = (() => {
       ctx.stroke();
 
       // Fire icon
-      ctx.fillStyle = inputState.fireActive ? '#fff' : 'rgba(255,200,200,0.7)';
-      ctx.font      = '22px sans-serif';
-      ctx.textAlign = 'center';
+      ctx.fillStyle    = inputState.fireActive ? '#fff' : 'rgba(255,200,200,0.7)';
+      ctx.font         = '22px sans-serif';
+      ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('🔥', fcx, fcy);
 
@@ -387,10 +473,14 @@ const Maki = (() => {
       }
     },
 
-    /** Resume context (needed after user gesture) */
+    /**
+     * Resume AudioContext — call inside every user gesture and every game
+     * frame.  On iOS and Android the context can enter 'suspended' state
+     * after the app is backgrounded, so we re-resume proactively.
+     */
     resume() {
-      if (this._ctx && this._ctx.state === 'suspended') {
-        this._ctx.resume();
+      if (this._ctx && this._ctx.state !== 'running') {
+        this._ctx.resume().catch(() => {});
       }
     },
 
@@ -403,6 +493,7 @@ const Maki = (() => {
      */
     beep(freq = 440, dur = 0.1, type = 'square', vol = 0.15) {
       if (!this._enabled || !this._ctx) return;
+      if (this._ctx.state === 'suspended') { this._ctx.resume().catch(() => {}); return; }
       // Respect SFX volume from settings panel (0–1), default 1
       const sfxScale = (typeof window._sfxVolume === 'number') ? window._sfxVolume : 1;
       const finalVol = vol * sfxScale;

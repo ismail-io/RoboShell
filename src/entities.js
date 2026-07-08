@@ -100,8 +100,8 @@ class Player {
   isHitBy(trash) {
     if (this.invincible > 0) return false;
     return Maki.Math.circleOverlap(
-      this.x, this.y, this.radius - 5,
-      trash.x, trash.y, trash.radius - 4
+      this.x, this.y, this.radius,
+      trash.x, trash.y, trash.radius
     );
   }
 
@@ -172,7 +172,7 @@ const TRASH_TYPES = [
   {
     id: 'plastic_bag',
     draw: (x, y, angle, scale) => Assets.drawPlasticBagImg(x, y, angle, scale),
-    radius: 22,
+    radius: 20,   // 76px draw, ~55% of half = 21 → 20
     hp: 1,
     score: 10,
     color: '#88ccff'
@@ -180,7 +180,7 @@ const TRASH_TYPES = [
   {
     id: 'soda_can',
     draw: (x, y, angle, scale) => Assets.drawSodaCan(x, y, angle, scale),
-    radius: 20,
+    radius: 18,   // 70px draw, ~55% of half = 19 → 18
     hp: 1,
     score: 10,
     color: '#cc2222'
@@ -188,7 +188,7 @@ const TRASH_TYPES = [
   {
     id: 'boxer_shorts',
     draw: (x, y, angle, scale) => Assets.drawBoxerShorts(x, y, angle, scale),
-    radius: 22,
+    radius: 20,   // 80px draw, ~55% of half = 22 → 20
     hp: 1,
     score: 10,
     color: '#ffcc00'
@@ -196,7 +196,7 @@ const TRASH_TYPES = [
   {
     id: 'bottle',
     draw: (x, y, angle, scale) => Assets.drawBottleImg(x, y, angle, scale),
-    radius: 20,
+    radius: 22,   // 110px draw, tall/thin shape → 22
     hp: 1,
     score: 10,
     color: '#44bb44'
@@ -204,7 +204,7 @@ const TRASH_TYPES = [
   {
     id: 'tire',
     draw: (x, y, angle, scale) => Assets.drawTireImg(x, y, angle, scale),
-    radius: 24,
+    radius: 22,   // 82px draw, ~55% of half = 22
     hp: 1,
     score: 10,
     color: '#888888'
@@ -212,7 +212,7 @@ const TRASH_TYPES = [
   {
     id: 'tshirt',
     draw: (x, y, angle, scale) => Assets.drawTshirt(x, y, angle, scale),
-    radius: 22,
+    radius: 14,   // 50px draw, flat shape → 14
     hp: 1,
     score: 10,
     color: '#5599cc'
@@ -317,7 +317,7 @@ class GiantTrashBall {
   constructor(x, y, playerX, playerY) {
     this.x      = x;
     this.y      = y;
-    this.radius = 80;
+    this.radius = 14;   // minimal collision — must nearly touch the boss center
     this.hp     = 3;
     this.maxHp  = 3;
     this.alive  = true;
@@ -384,11 +384,11 @@ class GiantTrashBall {
     if (this.hp <= 0) this.alive = false;
   }
 
-  /** Returns true if this ball touches the player (instant kill) */
+  /** Returns true if this ball visually touches the player */
   touchesPlayer(player) {
     return Maki.Math.circleOverlap(
-      this.x, this.y, this.radius - 6,
-      player.x, player.y, player.radius - 6
+      this.x, this.y, this.radius,
+      player.x, player.y, player.radius
     );
   }
 
