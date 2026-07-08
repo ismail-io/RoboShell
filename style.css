@@ -129,7 +129,15 @@ html, body {
 }
 
 #intro-video {
-  display: none; /* drawn via canvas instead */
+  /* Hidden by default — shown directly on non-iOS browsers (no canvas copy needed) */
+  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Crop bottom 10% to hide any letterbox bar */
+  object-position: center top;
 }
 
 #intro-canvas {

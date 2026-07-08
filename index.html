@@ -61,16 +61,21 @@
   <div id="intro-screen" class="hidden">
     <canvas id="intro-canvas"></canvas>
     <!--
-      The <video> is hidden — its frames are drawn onto intro-canvas
-      each frame via requestAnimationFrame. This is needed for iOS
-      Safari which refuses to show <video> fullscreen in certain modes.
+      Strategy:
+       1. We preload="metadata" so the browser buffers the video during
+          the loading screen — no stutter when playback starts.
+       2. On most browsers (Android Chrome, desktop) we show the <video>
+          element directly inside the canvas overlay — zero copy overhead.
+       3. On iOS Safari, <video> must stay hidden and we copy frames to
+          canvas via rAF, but we throttle to the video's own framerate
+          using requestVideoFrameCallback where available.
     -->
     <video id="intro-video"
            src="assets/video/intro.mp4"
            playsinline
            muted
-           preload="none"
-           style="display:none">
+           preload="auto"
+           style="display:none; position:absolute; inset:0; width:100%; height:100%; object-fit:cover;">
     </video>
     <button id="intro-skip" aria-label="Go to main menu">&#10140;</button>
   </div>
@@ -490,7 +495,20 @@
     resizeIntroCanvas();
     window.addEventListener('resize', resizeIntroCanvas);
 
-    function renderIntroFrame() {
+    // ── Detect iOS Safari (needs canvas copy path) ──────────
+    // On iOS Safari, <video> inside a non-fullscreen overlay refuses to render
+    // visually, so we must copy frames to canvas ourselves.
+    var _isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) &&
+                 !window.MSStream;
+    var _useCanvasCopy = _isIOS;
+
+    // ── Canvas copy render loop ──────────────────────────────
+    // Uses requestVideoFrameCallback (Chrome 83+, Safari 15.4+) when available
+    // to fire ONLY once per decoded video frame — not every rAF tick.
+    // Falls back to rAF with a timestamp guard (throttled to ~30fps max).
+    var _lastFrameTime = 0;
+
+    function _drawVideoFrame() {
       if (introVideo.paused && introVideo.ended) return;
       var vw = introVideo.videoWidth;
       var vh = introVideo.videoHeight;
@@ -507,12 +525,55 @@
         introCtx.fillRect(0, 0, cw, ch);
         introCtx.drawImage(introVideo, 0, 0, vw, srcH, dx, dy, dw, dh);
       }
-      introRaf = requestAnimationFrame(renderIntroFrame);
+    }
+
+    function _scheduleNextFrame() {
+      if (introVideo.paused || introVideo.ended) return;
+      // Prefer requestVideoFrameCallback — fires exactly once per decoded frame
+      if (typeof introVideo.requestVideoFrameCallback === 'function') {
+        introVideo.requestVideoFrameCallback(function () {
+          _drawVideoFrame();
+          _scheduleNextFrame();
+        });
+      } else {
+        // Fallback: rAF throttled to ~30fps to avoid wasting CPU
+        introRaf = requestAnimationFrame(function (ts) {
+          if (ts - _lastFrameTime >= 32) { // ~30fps floor
+            _lastFrameTime = ts;
+            _drawVideoFrame();
+          }
+          _scheduleNextFrame();
+        });
+      }
+    }
+
+    function renderIntroFrame() {
+      if (_useCanvasCopy) {
+        // iOS path — copy video frames to canvas
+        introCanvas.style.display = 'block';
+        introVideo.style.display  = 'none';
+        _lastFrameTime = 0;
+        _scheduleNextFrame();
+      } else {
+        // All other browsers — show the <video> element directly, hide canvas.
+        // Zero copy overhead; hardware-accelerated video decoding handles rendering.
+        introCanvas.style.display = 'none';
+        introVideo.style.display  = 'block';
+      }
     }
 
     function dismissIntro() {
+      // Cancel canvas copy loop (iOS path)
       if (introRaf) { cancelAnimationFrame(introRaf); introRaf = null; }
+      // Cancel requestVideoFrameCallback if it was used
+      if (introVideo._vfcId) {
+        try { introVideo.cancelVideoFrameCallback(introVideo._vfcId); } catch (_) {}
+        introVideo._vfcId = null;
+      }
       introVideo.pause();
+      // Hide both canvas and video element cleanly
+      introCanvas.style.display = 'none';
+      introVideo.style.display  = 'none';
       introScreen.classList.add('fade-out');
       setTimeout(function () {
         introScreen.classList.add('hidden');
@@ -528,29 +589,47 @@
     function playIntroVideo() {
       introScreen.classList.remove('hidden');
 
-      // Try with sound first (user gesture just happened)
+      // Reset display state
+      introCanvas.style.display = 'none';
+      introVideo.style.display  = 'none';
+
       introVideo.muted = false;
       introVideo.currentTime = 0;
 
-      var playPromise = introVideo.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(function () {
-            renderIntroFrame();
-          })
-          .catch(function () {
-            // Unmuted blocked — try muted
-            introVideo.muted = true;
-            introVideo.play()
-              .then(function () { renderIntroFrame(); })
-              .catch(function () {
-                // Completely blocked — skip intro
-                dismissIntro();
-              });
-          });
+      function _startPlayback() {
+        var playPromise = introVideo.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(function () {
+              renderIntroFrame();
+            })
+            .catch(function () {
+              // Unmuted blocked — try muted (autoplay policy)
+              introVideo.muted = true;
+              introVideo.play()
+                .then(function () { renderIntroFrame(); })
+                .catch(function () {
+                  // Completely blocked — skip intro
+                  dismissIntro();
+                });
+            });
+        } else {
+          renderIntroFrame();
+        }
+      }
+
+      // Wait for enough data to play smoothly before starting.
+      // readyState 3 = HAVE_FUTURE_DATA, 4 = HAVE_ENOUGH_DATA.
+      // If already buffered (preload="auto" during loading screen), fires instantly.
+      if (introVideo.readyState >= 3) {
+        _startPlayback();
       } else {
-        // Older browser — just start rendering
-        renderIntroFrame();
+        introVideo.addEventListener('canplay', function onCanPlay() {
+          introVideo.removeEventListener('canplay', onCanPlay);
+          _startPlayback();
+        });
+        // Kick off buffering in case it hasn't started
+        introVideo.load();
       }
     }
 
