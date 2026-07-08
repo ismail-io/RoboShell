@@ -51,9 +51,22 @@ class GameScene extends Maki.Scene {
     this.particles.clear();
     this._updateHUD();
 
+    // ── Show "How to Play" tutorial on first mobile session ──
+    if (window._showHowToPlay) window._showHowToPlay();
+
     // Start background music
     const bgm = document.getElementById('bgm');
-    if (bgm) { bgm.currentTime = 0; bgm.play().catch(() => {}); }
+    if (bgm) {
+      bgm.currentTime = 0;
+      // Resume AudioContext first (required after backgrounding on iOS/Android)
+      if (window.Maki && Maki.Audio) Maki.Audio.resume();
+      bgm.play().catch(() => {
+        // Autoplay blocked — retry once on next user interaction
+        const retryBgm = () => { bgm.play().catch(() => {}); };
+        document.addEventListener('touchstart', retryBgm, { once: true });
+        document.addEventListener('click',      retryBgm, { once: true });
+      });
+    }
   }
 
   onExit() {
@@ -789,7 +802,14 @@ class GameScene extends Maki.Scene {
 
       goMusic.addEventListener('ended', goMusic._onEnded);
       goMusic.currentTime = 0;
-      goMusic.play().catch(() => {});
+      // Resume AudioContext in case it was suspended after backgrounding
+      if (window.Maki && Maki.Audio) Maki.Audio.resume();
+      goMusic.play().catch(() => {
+        // Autoplay blocked — retry on next user interaction
+        const retryGo = () => { goMusic.play().catch(() => {}); };
+        document.addEventListener('touchstart', retryGo, { once: true });
+        document.addEventListener('click',      retryGo, { once: true });
+      });
     }
 
     // ── Typing animation for "GAME OVER" ──
@@ -932,23 +952,18 @@ class MenuScene extends Maki.Scene {
   }
 
   _onClick(e) {
-    // Ignore clicks while intro screen is still showing
     const intro = document.getElementById('intro-screen');
     if (intro && !intro.classList.contains('hidden')) return;
     const mx = e.clientX, my = e.clientY;
 
-    // Let settings panel handle its own clicks first
     if (this._settings.isOpen()) {
       this._settings.handleClick(mx, my);
       return;
     }
 
-    if (this._inBtn(mx, my, this._btnSettings)) {
-      this._settings.open();
-      return;
-    }
-    if (this._inBtn(mx, my, this._btnStart)) this._onStart();
-    if (this._inBtn(mx, my, this._btnExit))  this._onExit();
+    if (this._inBtn(mx, my, this._btnSettings)) { this._settings.open(); return; }
+    if (this._inBtn(mx, my, this._btnStart))    this._onStart();
+    if (this._inBtn(mx, my, this._btnExit))     this._onExit();
   }
 
   _onTouchClick(e) {
@@ -962,12 +977,9 @@ class MenuScene extends Maki.Scene {
       this._settings.handleClick(mx, my);
       return;
     }
-    if (this._inBtn(mx, my, this._btnSettings)) {
-      this._settings.open();
-      return;
-    }
-    if (this._inBtn(mx, my, this._btnStart)) this._onStart();
-    if (this._inBtn(mx, my, this._btnExit))  this._onExit();
+    if (this._inBtn(mx, my, this._btnSettings)) { this._settings.open(); return; }
+    if (this._inBtn(mx, my, this._btnStart))    this._onStart();
+    if (this._inBtn(mx, my, this._btnExit))     this._onExit();
   }
 
   _onMove(e) {
@@ -1368,39 +1380,40 @@ class MenuScene extends Maki.Scene {
   const canvas   = document.getElementById('gameCanvas');
   const engine   = new Maki.Engine(canvas);
 
+  // ── Init animated loading screen ──
+  LoadingScreen.init();
+  // Flush any progress calls that happened before LoadingScreen was ready
+  if (window._flushLoadingProgress) window._flushLoadingProgress();
+
   // ── Loading screen helpers ──
   const loadingScreen = document.getElementById('loading-screen');
-  const loadingBar    = document.getElementById('loading-bar');
-  const loadingLabel  = document.getElementById('loading-label');
+  const startSplash   = document.getElementById('start-splash');
 
-  function showLoading(onDone) {
-    loadingBar.style.width = '0%';
-    loadingLabel.textContent = 'Preparing the ocean...';
+  /**
+   * Lightweight scene-transition (used between menu ↔ game after initial load).
+   * Shows loading screen briefly with animated bar, no asset re-loading.
+   */
+  function showTransition(onDone) {
     loadingScreen.classList.add('active');
-
-    // Animate bar from 0 → 100% over ~600ms then call onDone
     let pct = 0;
-    const messages = ['Loading assets...', 'Spawning enemies...', 'Filling the ocean...', 'Almost ready...'];
     const interval = setInterval(() => {
-      pct += Math.random() * 18 + 8;
+      pct += Math.random() * 22 + 12;
       if (pct >= 100) pct = 100;
-      loadingBar.style.width = pct + '%';
-      loadingLabel.textContent = messages[Math.min(Math.floor(pct / 26), messages.length - 1)];
+      LoadingScreen.setProgress(Math.round(pct), 100, pct, '');
       if (pct >= 100) {
         clearInterval(interval);
         setTimeout(() => {
           loadingScreen.classList.remove('active');
           onDone();
-        }, 200);
+        }, 180);
       }
-    }, 60);
+    }, 45);
   }
 
-  // ── Scenes (declared first so handlers can reference them) ──
+  // ── Scenes ──
   const gameScene = new GameScene(engine);
   engine.addScene('game', gameScene);
 
-  // ── Pause button (needed by menuScene callbacks) ──
   const pauseBtn     = document.getElementById('pause-btn');
   const pauseOverlay = document.getElementById('pause-overlay');
 
@@ -1409,37 +1422,49 @@ class MenuScene extends Maki.Scene {
     () => {
       document.body.style.cursor = 'default';
       pauseBtn.classList.add('visible');
-      introReplayBtn.classList.remove('visible'); // hide on game start
-      showLoading(() => engine.switchScene('game'));
+      introReplayBtn.classList.remove('visible');
+      showTransition(() => engine.switchScene('game'));
     },
-    () => window.close()
+    () => {
+      // Exit the game — try multiple approaches for different browsers/platforms
+      // 1. Try window.close() (works if opened by script)
+      // 2. Navigate to blank page (works in most mobile browsers)
+      // 3. Show a full-screen "You can close this tab" message as fallback
+      try { window.close(); } catch (e) {}
+      setTimeout(() => {
+        // If still open after 200ms, navigate away
+        try {
+          window.location.replace('about:blank');
+        } catch (e) {
+          // Final fallback — show exit message on canvas
+          const c = document.getElementById('gameCanvas');
+          const ctx = c.getContext('2d');
+          ctx.fillStyle = '#000811';
+          ctx.fillRect(0, 0, c.width, c.height);
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#00eeff';
+          ctx.font = `bold ${Math.round(c.width * 0.04)}px 'Courier New', monospace`;
+          ctx.fillText('You can now close this tab.', c.width / 2, c.height / 2);
+        }
+      }, 200);
+    }
   );
   engine.addScene('menu', menuScene);
 
-  // ── Intro replay button (top-left, visible on main menu only) ──
+  // ── Intro replay button ──
   const introReplayBtn = document.getElementById('intro-replay-btn');
-  // shown after intro finishes or is skipped (handled in dismissIntro)
+
+  // Expose menu switcher so index.html dismissIntro can call it
+  window._goToMenu = () => {
+    engine.switchScene('menu');
+  };
 
   introReplayBtn.addEventListener('click', () => {
-    const introScreen = document.getElementById('intro-screen');
-    const introVideo  = document.getElementById('intro-video');
-    introScreen.classList.remove('hidden', 'fade-out');
-    introVideo.currentTime = 0;
-    // User clicked — browser allows sound now
-    introVideo.muted = false;
-    introVideo.play().then(() => {
-      if (window.renderIntroFrame) window.renderIntroFrame();
-    }).catch(() => {
-      introVideo.muted = true;
-      introVideo.play().then(() => {
-        if (window.renderIntroFrame) window.renderIntroFrame();
-      }).catch(() => {
-        introScreen.classList.add('fade-out');
-        setTimeout(() => introScreen.classList.add('hidden'), 650);
-      });
-    });
+    if (window.playIntroVideo) window.playIntroVideo();
   });
 
+  // ── Pause menu ──
   function openPause() {
     engine.paused = true;
     pauseOverlay.classList.add('open');
@@ -1451,7 +1476,10 @@ class MenuScene extends Maki.Scene {
     engine.paused = false;
     pauseOverlay.classList.remove('open');
     const bgm = document.getElementById('bgm');
-    if (bgm) bgm.play().catch(() => {});
+    if (bgm) {
+      if (window.Maki && Maki.Audio) Maki.Audio.resume();
+      bgm.play().catch(() => {});
+    }
   }
 
   pauseBtn.addEventListener('click', () => {
@@ -1466,7 +1494,7 @@ class MenuScene extends Maki.Scene {
     closePause();
     document.getElementById('gameover-screen').classList.remove('active');
     gameScene._stopGameOverMusic();
-    showLoading(() => engine.switchScene('game'));
+    showTransition(() => engine.switchScene('game'));
   });
 
   document.getElementById('pm-exit').addEventListener('click', () => {
@@ -1477,15 +1505,10 @@ class MenuScene extends Maki.Scene {
     document.getElementById('gameover-screen').classList.remove('active');
     gameScene._stopGameOverMusic();
     pauseBtn.classList.remove('visible');
-    showLoading(() => {
+    showTransition(() => {
       introReplayBtn.classList.add('visible');
       engine.switchScene('menu');
     });
-  });
-
-  // Load images then show menu
-  Loader.loadAll().then(() => {
-    engine.start('menu');
   });
 
   // Restart button (game over screen)
@@ -1493,9 +1516,32 @@ class MenuScene extends Maki.Scene {
     document.getElementById('gameover-screen').classList.remove('active');
     gameScene._stopGameOverMusic();
     pauseBtn.classList.remove('visible');
-    showLoading(() => {
+    showTransition(() => {
       introReplayBtn.classList.add('visible');
       engine.switchScene('menu');
     });
+  });
+
+  // ── STARTUP SEQUENCE ──
+  // Load all assets, show RoboShell walking animation, then victory → splash.
+  // window._onLoadProgress is set in index.html and routes to LoadingScreen.setProgress.
+
+  Loader.loadAll((loaded, total, pct) => {
+    // Extract asset name from the current URL being loaded
+    const label = '';   // label passed via setProgress from loader
+    LoadingScreen.setProgress(loaded, total, pct, label);
+  }).then(() => {
+    // All assets done — reveal splash (canvas handles its own fade-in)
+    LoadingScreen.complete(() => {
+      // Reset fade-in so animation always plays regardless of load speed
+      if (typeof window._splashResetFadeIn === 'function') window._splashResetFadeIn();
+      // Make splash visible — canvas loop already running
+      startSplash.style.display       = 'block';
+      startSplash.style.pointerEvents = 'all';
+      engine.start('menu');
+    });
+  }).catch(err => {
+    console.error('[Bootstrap] Asset loading failed:', err);
+    LoadingScreen.setProgress(0, 1, 0, 'Loading failed — refresh the page');
   });
 })();

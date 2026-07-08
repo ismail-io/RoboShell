@@ -17,14 +17,12 @@ const Assets = (() => {
   // ─────────────────────────────────────────────
   const TURTLE_SIZE = 56; // body image size (width & height)
 
+  // ── Offscreen tint canvas removed — shop system deleted ──
+
   function drawTurtle(x, y, angle, frame = 0, moving = true) {
     const img  = Loader.get('turtle');
     const half = TURTLE_SIZE / 2;
-
-    // Idle bob
-    const bob = moving ? 0 : Math.sin(frame * 0.07) * 2;
-
-    // Flipper swing
+    const bob  = moving ? 0 : Math.sin(frame * 0.07) * 2;
     const speed = moving ? 0.45 : 0.08;
     const swing = moving ? 18 : 4;
     const finW  = Math.sin(frame * speed) * swing;
@@ -34,10 +32,8 @@ const Assets = (() => {
     R.ctx.translate(Math.round(x), Math.round(y + bob));
     R.ctx.rotate(angle + Math.PI / 2);
 
-    // 1. Flippers behind body
     _drawFlippers(R.ctx, finW, footW, false);
 
-    // 2. Body image
     if (img) {
       const prev = R.ctx.globalCompositeOperation;
       R.ctx.globalCompositeOperation = 'screen';
@@ -50,9 +46,7 @@ const Assets = (() => {
       R.ctx.fill();
     }
 
-    // 3. Flipper tips on top
     _drawFlippers(R.ctx, finW, footW, true);
-
     R.restore();
   }
 
@@ -63,6 +57,8 @@ const Assets = (() => {
     const fc1 = '#1a7a99';
     const fc2 = '#00ccee';
     const fc3 = '#004466';
+    const footCol    = '#1a6688';
+    const footStroke = '#00aacc';
 
     if (!frontOnly) {
       // ── Left side fin — anchor x=-11 (was -15) ──
@@ -101,29 +97,29 @@ const Assets = (() => {
       ctx.beginPath(); ctx.moveTo(1,1); ctx.lineTo(6,2); ctx.stroke();
       ctx.restore();
 
-      // ── Back-left foot — anchor (-6, 13) (was -8, 17) ──
+      // ── Back-left foot ──
       ctx.save();
       ctx.translate(-6, 13);
       ctx.rotate((-7 + footW) * Math.PI / 180);
-      ctx.fillStyle = '#1a6688';
+      ctx.fillStyle = footCol;
       ctx.beginPath();
       ctx.moveTo(0,0); ctx.lineTo(-4,1); ctx.lineTo(-5,5);
       ctx.lineTo(-1,6); ctx.lineTo(0,3);
       ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = '#00aacc'; ctx.lineWidth = 1;
+      ctx.strokeStyle = footStroke; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(-1,1); ctx.lineTo(-3,4); ctx.stroke();
       ctx.restore();
 
-      // ── Back-right foot — anchor (6, 13) ──
+      // ── Back-right foot ──
       ctx.save();
       ctx.translate(6, 13);
       ctx.rotate((7 - footW) * Math.PI / 180);
-      ctx.fillStyle = '#1a6688';
+      ctx.fillStyle = footCol;
       ctx.beginPath();
       ctx.moveTo(0,0); ctx.lineTo(4,1); ctx.lineTo(5,5);
       ctx.lineTo(1,6); ctx.lineTo(0,3);
       ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = '#00aacc'; ctx.lineWidth = 1;
+      ctx.strokeStyle = footStroke; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(1,1); ctx.lineTo(3,4); ctx.stroke();
       ctx.restore();
     }

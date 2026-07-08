@@ -2,32 +2,127 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <!--
+    Mobile viewport: no zoom, full screen, respect safe areas (notch / home indicator)
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0,
+        user-scalable=no, viewport-fit=cover" />
+
+  <!-- PWA / home-screen app hints -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#000d1a" />
+
   <title>RoboShell Savior</title>
-  <link rel="icon" type="image/png" href="assets/web icon/turtel game icon.png">
+  <link rel="icon" type="image/png" href="assets/web icon/turtel game icon.png" />
   <link rel="stylesheet" href="style.css" />
-  <!-- Professional game title font -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+
+  <!-- Game font — non-blocking -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap"
+        rel="stylesheet" />
+
+  <!--
+    Preload the 3 most critical images so the browser fetches them
+    in parallel with the HTML parse, giving Loader.js a head-start.
+  -->
+  <link rel="preload" as="image" href="assets/player/turtle.png" />
+  <link rel="preload" as="image" href="assets/bg/background.png" />
+  <link rel="preload" as="image" href="assets/enemy/boss.png" />
+  <link rel="preload" as="image" href="assets/loading-bg/loading-bg.png" />
 </head>
 <body>
-  <!-- Click to start splash — required for audio autoplay -->
+
+  <!-- ══════════════════════════════════════════
+       LOADING SCREEN — canvas-rendered animated screen
+       LoadingScreen.js draws everything on #ls-canvas.
+       z-index: 900
+       ══════════════════════════════════════════ -->
+  <div id="loading-screen" class="active">
+    <!-- Canvas injected by LoadingScreen.init() -->
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       TAP TO START SCREEN
+       Auto-shown after loading completes (100%).
+       Full canvas background — no dark boxes.
+       z-index: 2000
+       ══════════════════════════════════════════ -->
   <div id="start-splash">
-    <div id="start-content">
-      <div id="start-title">ROBOSHELL SAVIOR</div>
-      <div id="start-btn">▶ &nbsp; CLICK TO START</div>
+    <canvas id="splash-canvas"></canvas>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       INTRO VIDEO SCREEN
+       Shown after the user taps the splash.
+       z-index: 1000
+       ══════════════════════════════════════════ -->
+  <div id="intro-screen" class="hidden">
+    <canvas id="intro-canvas"></canvas>
+    <!--
+      The <video> is hidden — its frames are drawn onto intro-canvas
+      each frame via requestAnimationFrame. This is needed for iOS
+      Safari which refuses to show <video> fullscreen in certain modes.
+    -->
+    <video id="intro-video"
+           src="assets/video/intro.mp4"
+           playsinline
+           muted
+           preload="none"
+           style="display:none">
+    </video>
+    <button id="intro-skip" aria-label="Go to main menu">&#10140;</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       HOW TO PLAY — Mobile first-run tutorial overlay
+       Shown once to touch-device users before their first game.
+       Dismissed by tapping anywhere or the Got It button.
+       z-index: 3000 (above everything)
+       ══════════════════════════════════════════ -->
+  <div id="howtoplay-overlay">
+    <div id="howtoplay-panel">
+      <h2 id="howtoplay-title">HOW TO PLAY</h2>
+      <div class="htp-row">
+        <div class="htp-icon">🕹️</div>
+        <div class="htp-desc">
+          <strong>MOVE</strong><br>
+          Drag the <em>left joystick</em> in any direction to swim
+        </div>
+      </div>
+      <div class="htp-row">
+        <div class="htp-icon">🔥</div>
+        <div class="htp-desc">
+          <strong>SHOOT</strong><br>
+          Hold the <em>right fire button</em> to blast trash
+        </div>
+      </div>
+      <div class="htp-row">
+        <div class="htp-icon">💥</div>
+        <div class="htp-desc">
+          <strong>BOSSES</strong><br>
+          Avoid giant trash balls — shoot them 3 times to destroy
+        </div>
+      </div>
+      <div class="htp-row">
+        <div class="htp-icon">❤️</div>
+        <div class="htp-desc">
+          <strong>LIVES</strong><br>
+          You have 5 hearts — don't let trash touch you
+        </div>
+      </div>
+      <button id="howtoplay-btn">GOT IT — LET'S GO!</button>
     </div>
   </div>
 
-  <!-- Intro video screen — shown first on load -->
-  <div id="intro-screen">
-    <canvas id="intro-canvas"></canvas>
-    <video id="intro-video" src="assets/video/intro.mp4" playsinline style="display:none"></video>
-    <button id="intro-skip">SKIP</button>
-  </div>
-
+  <!-- ══════════════════════════════════════════
+       GAME CONTAINER
+       ══════════════════════════════════════════ -->
   <div id="game-container">
     <canvas id="gameCanvas"></canvas>
+
+    <!-- HUD — score / best -->
     <div id="ui-overlay">
       <div id="hud-right">
         <div id="score-display">SCORE: <span id="score">0</span></div>
@@ -35,25 +130,18 @@
       </div>
     </div>
 
-    <!-- Hamburger button — top right, only during gameplay -->
-    <button id="pause-btn" aria-label="Menu">
+    <!-- Pause / hamburger button — top right, visible only during gameplay -->
+    <button id="pause-btn" aria-label="Pause menu">
       <span></span><span></span><span></span>
     </button>
 
-    <!-- Intro replay button — top left, only on main menu -->
-    <button id="intro-replay-btn" aria-label="Watch Intro">▶ INTRO</button>
+    <!-- Intro replay button — top left, visible only on main menu -->
+    <button id="intro-replay-btn" aria-label="Watch intro again">▶ INTRO</button>
   </div>
 
-  <!-- Loading screen -->
-  <div id="loading-screen">
-    <div id="loading-content">
-      <div id="loading-title">LOADING</div>
-      <div id="loading-bar-wrap">
-        <div id="loading-bar"></div>
-      </div>
-      <div id="loading-label">Preparing the ocean...</div>
-    </div>
-  </div>
+  <!-- ══════════════════════════════════════════
+       PAUSE OVERLAY
+       ══════════════════════════════════════════ -->
   <div id="pause-overlay">
     <div id="pause-panel">
       <button class="pause-menu-btn" id="pm-resume">RESUME</button>
@@ -62,7 +150,9 @@
     </div>
   </div>
 
-  <!-- Game Over screen -->
+  <!-- ══════════════════════════════════════════
+       GAME OVER SCREEN
+       ══════════════════════════════════════════ -->
   <div id="gameover-screen" class="screen">
     <div class="screen-content">
       <h1 id="gameover-title"></h1>
@@ -74,12 +164,27 @@
     </div>
   </div>
 
-  <!-- Background music — plays only during gameplay -->
-  <audio id="bgm" src="assets/music/bgm.mp3" loop preload="auto"></audio>
-  <!-- Game over music — plays only on game over screen, loops with 2s gap -->
-  <audio id="bgm-gameover" src="assets/music/gameover.mp3" preload="auto"></audio>
+  <!--
+    Audio elements — src will be set by Loader.applyAudioToElements()
+    after assets are preloaded. Using preload="none" here to avoid
+    duplicate fetches; Loader uses fetch+blob for reliable mobile loading.
+  -->
+  <audio id="bgm" loop preload="none"></audio>
+  <audio id="bgm-gameover" preload="none"></audio>
 
+  <!-- ══════════════════════════════════════════
+       INLINE BOOTSTRAP SCRIPT
+       Handles:
+        1. Canvas resize
+        2. JS error display
+        3. Intro video canvas rendering
+        4. Loading → splash → intro → game flow
+       ══════════════════════════════════════════ -->
   <script>
+  (function () {
+    'use strict';
+
+    // ── Canvas resize ──────────────────────────
     const _canvas = document.getElementById('gameCanvas');
     function resizeCanvas() {
       _canvas.width  = window.innerWidth;
@@ -88,25 +193,295 @@
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    // Surface any JS errors visibly
-    window.addEventListener('error', (e) => {
-      document.body.style.background = '#111';
-      const div = document.createElement('div');
-      div.style.cssText = 'position:fixed;top:20px;left:20px;right:20px;background:#300;color:#f88;font:14px monospace;padding:16px;border:2px solid #f44;border-radius:6px;z-index:9999;white-space:pre-wrap;';
-      div.textContent = '❌ JS ERROR:\n' + e.message + '\n\nFile: ' + e.filename + '\nLine: ' + e.lineno;
+    // ── Visible JS error overlay ───────────────
+    window.addEventListener('error', function (e) {
+      var div = document.createElement('div');
+      div.style.cssText =
+        'position:fixed;top:20px;left:20px;right:20px;background:#300;' +
+        'color:#f88;font:13px monospace;padding:14px;border:2px solid #f44;' +
+        'border-radius:6px;z-index:99999;white-space:pre-wrap;';
+      div.textContent = '❌ JS ERROR:\n' + e.message +
+        '\n\nFile: ' + (e.filename || '?') + '\nLine: ' + (e.lineno || '?');
       document.body.appendChild(div);
     });
 
-    // ── Intro video logic ──
-    const introScreen = document.getElementById('intro-screen');
-    const introVideo  = document.getElementById('intro-video');
-    const introCanvas = document.getElementById('intro-canvas');
-    const introCtx    = introCanvas.getContext('2d');
-    const introSkip   = document.getElementById('intro-skip');
+    // ── _onLoadProgress: wired to LoadingScreen after scripts load ──
+    // LoadingScreen is not yet defined here (scripts load after body),
+    // so we buffer calls and flush once LoadingScreen is ready.
+    var _progressBuffer = [];
+    window._onLoadProgress = function (loaded, total, pct, label) {
+      if (window.LoadingScreen && window.LoadingScreen.setProgress) {
+        window.LoadingScreen.setProgress(loaded, total, pct, label);
+      } else {
+        _progressBuffer.push([loaded, total, pct, label]);
+      }
+    };
+    window._flushLoadingProgress = function () {
+      if (window.LoadingScreen && _progressBuffer.length) {
+        _progressBuffer.forEach(function (a) {
+          window.LoadingScreen.setProgress(a[0], a[1], a[2], a[3]);
+        });
+        _progressBuffer = [];
+      }
+    };
 
-    // Crop: draw only the top 90% of the video to remove the white bar at the bottom
-    const CROP = 0.90;
-    let   introRaf = null;
+    // ── Intro video ────────────────────────────
+    var introScreen = document.getElementById('intro-screen');
+    var introVideo  = document.getElementById('intro-video');
+    var introCanvas = document.getElementById('intro-canvas');
+    var introCtx    = introCanvas.getContext('2d');
+    var introSkip   = document.getElementById('intro-skip');
+    var startSplash = document.getElementById('start-splash');
+
+    // ══════════════════════════════════════════════════════════
+    //  TAP-TO-START CANVAS — everything drawn on canvas, no HTML UI
+    // ══════════════════════════════════════════════════════════
+    var splashCanvas = document.getElementById('splash-canvas');
+    var splashCtx    = splashCanvas.getContext('2d', { alpha: false });
+    var splashRaf    = null;
+    var splashFrame  = 0;
+    var splashFadeIn    = 0;       // 0→1 over ~60 frames on show
+    var splashFadeOut   = 0;       // 0→1 on dismiss
+    var splashDismissed = false;
+    var splashVisible   = false;   // true only after loading completes
+
+    // Load the bg image directly here — guaranteed available regardless of script order
+    var _splashBgImg   = new Image();
+    var _splashBgReady = false;
+    _splashBgImg.onload  = function () { _splashBgReady = true; };
+    _splashBgImg.onerror = function () { _splashBgReady = false; };
+    _splashBgImg.src = 'assets/loading-bg/loading-bg.png';
+
+    // Ken-Burns
+    var spKbScale  = 1.0;
+
+    // Wave shimmer
+    var spWaveOff  = 0;
+
+    // Particles — bioluminescent sparks
+    var SP_PART = 55;
+    var spParts = [];
+    function spMakePart(randY) {
+      var sh = splashCanvas.height || window.innerHeight;
+      var sw = splashCanvas.width  || window.innerWidth;
+      var hue = 165 + Math.random() * 70;
+      return {
+        x: Math.random() * sw,
+        y: randY ? Math.random() * sh : sh + 5,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: -(0.2 + Math.random() * 0.6),
+        r: 0.8 + Math.random() * 2.2,
+        alpha: 0, maxA: 0.25 + Math.random() * 0.55,
+        fadeIn: 35 + Math.random() * 35,
+        life: 0, maxLife: 160 + Math.random() * 220,
+        hue: hue, pulse: Math.random() * Math.PI * 2
+      };
+    }
+    for (var _si = 0; _si < SP_PART; _si++) spParts.push(spMakePart(true));
+
+    // Bubbles — rising rings
+    var SP_BUBS = 24;
+    var spBubs  = [];
+    function spMakeBub(randY) {
+      var sh = splashCanvas.height || window.innerHeight;
+      var sw = splashCanvas.width  || window.innerWidth;
+      return {
+        x: sw * 0.05 + Math.random() * sw * 0.9,
+        y: randY ? Math.random() * sh : sh + 5,
+        vy: 0.3 + Math.random() * 0.7,
+        r: 1.5 + Math.random() * 4,
+        alpha: 0, maxA: 0.10 + Math.random() * 0.22,
+        life: 0, maxLife: 130 + Math.random() * 180,
+        phase: Math.random() * Math.PI * 2
+      };
+    }
+    for (var _bi = 0; _bi < SP_BUBS; _bi++) spBubs.push(spMakeBub(true));
+
+    function resizeSplashCanvas() {
+      splashCanvas.width  = window.innerWidth;
+      splashCanvas.height = window.innerHeight;
+    }
+    resizeSplashCanvas();
+    window.addEventListener('resize', resizeSplashCanvas);
+
+    function splashLoop() {
+      splashRaf = requestAnimationFrame(splashLoop);
+      splashFrame++;
+      spWaveOff += 0.7;
+
+      // Ken-Burns slow zoom
+      if (spKbScale < 1.08) spKbScale += (1.08 - spKbScale) * 0.0003;
+
+      // Fade-in — only when splash is actually shown
+      if (splashVisible && !splashDismissed && splashFadeIn < 1) {
+        splashFadeIn = Math.min(1, splashFadeIn + 0.022);
+      }
+      // Fade-out animation
+      if (splashDismissed) {
+        splashFadeOut = Math.min(1, splashFadeOut + 0.032);
+        if (splashFadeOut >= 1) {
+          cancelAnimationFrame(splashRaf);
+          splashRaf = null;
+          startSplash.style.display = 'none';
+          _onSplashDone();
+          return;
+        }
+      }
+
+      var sw  = splashCanvas.width;
+      var sh  = splashCanvas.height;
+      var ctx = splashCtx;
+
+      // Global fade-in / fade-out alpha
+      var globalAlpha = splashDismissed
+        ? Math.max(0, 1 - splashFadeOut)
+        : splashFadeIn;
+
+      // ── 1. Background image — cover-fit, pinned bottom ──────
+      var img = _splashBgReady ? _splashBgImg
+              : (window.LoadingScreen && window.LoadingScreen.getBgImage
+                  ? window.LoadingScreen.getBgImage() : null);
+      if (img) {
+        var iw = img.naturalWidth  || img.width  || sw;
+        var ih = img.naturalHeight || img.height || sh;
+        var s  = Math.max(sw / iw, sh / ih) * spKbScale;
+        var dw = iw * s, dh = ih * s;
+        var dx = (sw - dw) / 2, dy = sh - dh;
+        ctx.globalAlpha = 1;
+        ctx.drawImage(img, dx, dy, dw, dh);
+      } else {
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#020d1a';
+        ctx.fillRect(0, 0, sw, sh);
+      }
+
+      ctx.globalAlpha = globalAlpha;
+
+      // ── 2. Water shimmer ─────────────────────────────────────
+      var waterY = sh * 0.53;
+      ctx.save();
+      for (var wi = 0; wi < 5; wi++) {
+        var wt = (spWaveOff * (0.5 + wi * 0.18) + wi * 90) % (sw + 140);
+        var wx = wt - 70;
+        var wy = waterY + Math.sin(splashFrame * 0.022 + wi * 1.1) * sh * 0.035;
+        var wl = 70 + Math.sin(splashFrame * 0.028 + wi) * 36;
+        var wa = 0.055 + Math.sin(splashFrame * 0.032 + wi * 0.8) * 0.025;
+        var wg = ctx.createLinearGradient(wx, 0, wx + wl, 0);
+        wg.addColorStop(0, 'rgba(0,200,220,0)');
+        wg.addColorStop(0.5, 'rgba(0,200,220,' + wa + ')');
+        wg.addColorStop(1, 'rgba(0,200,220,0)');
+        ctx.fillStyle = wg;
+        ctx.fillRect(wx, wy - 2, wl, 5);
+      }
+      ctx.restore();
+
+      // ── 3. Bubbles ───────────────────────────────────────────
+      ctx.save();
+      for (var bi = 0; bi < spBubs.length; bi++) {
+        var b = spBubs[bi];
+        b.life++; b.y -= b.vy;
+        b.x += Math.sin(b.phase + splashFrame * 0.022) * 0.4;
+        b.alpha = b.life < 28 ? (b.life / 28) * b.maxA
+          : b.life > b.maxLife - 28 ? Math.max(0, (b.maxLife - b.life) / 28 * b.maxA)
+          : b.maxA;
+        if (b.life >= b.maxLife || b.y < -10) { spBubs[bi] = spMakeBub(false); continue; }
+        if (b.alpha < 0.01) continue;
+        ctx.globalAlpha = b.alpha * globalAlpha;
+        ctx.strokeStyle = 'rgba(100,220,255,0.9)';
+        ctx.lineWidth = 0.8;
+        ctx.shadowColor = '#00eeff'; ctx.shadowBlur = 6;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = b.alpha * globalAlpha * 0.38;
+        ctx.fillStyle = 'rgba(180,240,255,0.6)';
+        ctx.beginPath();
+        ctx.arc(b.x - b.r * 0.28, b.y - b.r * 0.28, b.r * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      ctx.restore();
+
+      // ── 4. Particles ─────────────────────────────────────────
+      ctx.save();
+      for (var pi = 0; pi < spParts.length; pi++) {
+        var p = spParts[pi];
+        p.life++;
+        p.x += p.vx + Math.sin(p.pulse + splashFrame * 0.02) * 0.18;
+        p.y += p.vy; p.pulse += 0.04;
+        if (p.life < p.fadeIn) { p.alpha = (p.life / p.fadeIn) * p.maxA; }
+        else if (p.life > p.maxLife - 38) { p.alpha = Math.max(0, p.alpha - p.maxA / 38); }
+        else { p.alpha = p.maxA * (0.75 + Math.sin(p.pulse * 2) * 0.25); }
+        if (p.life >= p.maxLife || p.y < -10) { spParts[pi] = spMakePart(false); continue; }
+        if (p.alpha < 0.01) continue;
+        ctx.globalAlpha = p.alpha * globalAlpha;
+        ctx.shadowColor = 'hsl(' + p.hue + ',100%,70%)';
+        ctx.shadowBlur  = p.r * 6;
+        ctx.fillStyle   = 'hsl(' + p.hue + ',100%,88%)';
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      ctx.restore();
+
+      // ── 5. UI: Title + TAP TO START button — all on canvas ───
+      ctx.save();
+      ctx.globalAlpha = globalAlpha;
+      _drawSplashUI(ctx, sw, sh, splashFrame);
+      ctx.restore();
+    }
+
+    // ── Draw all UI text on canvas ────────────────────────────
+    function _drawSplashUI(ctx, sw, sh, frame) {
+      var cx   = sw / 2;
+      var cy   = sh * 0.42;
+      var btnH = Math.round(Math.min(sh * 0.085, 68));
+
+      // ── TAP TO START — text only, no box ───────────────────
+      var btnPulse = 0.5 + 0.5 * Math.sin(frame * 0.055);
+      var btnFS    = Math.max(18, Math.round(sw * 0.034));
+
+      ctx.save();
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font         = '700 ' + btnFS + 'px Orbitron,"Courier New",monospace';
+
+      // Wide outer glow
+      ctx.shadowColor = '#00ff88';
+      ctx.shadowBlur  = 18 + btnPulse * 26;
+      ctx.fillStyle   = 'rgba(0,220,100,' + (0.55 + btnPulse * 0.35) + ')';
+      ctx.fillText('TAP TO START', cx, cy);
+
+      // Bright core
+      ctx.shadowBlur = 4;
+      ctx.fillStyle  = 'rgba(180,255,210,' + (0.75 + btnPulse * 0.25) + ')';
+      ctx.fillText('TAP TO START', cx, cy);
+
+      ctx.shadowBlur = 0;
+      ctx.restore();
+
+      // ── Hint text ───────────────────────────────────────────
+      var hintFS = Math.max(9, Math.round(sw * 0.013));
+      ctx.save();
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font         = hintFS + 'px "Courier New",monospace';
+      ctx.fillStyle    = 'rgba(100,200,130,' + (0.35 + Math.sin(frame * 0.04) * 0.15) + ')';
+      ctx.fillText('CLICK OR TAP ANYWHERE', cx, cy + btnH + Math.round(sh * 0.038));
+      ctx.restore();
+    }
+
+    // splashLoop started by _splashResetFadeIn after loading completes
+    window._splashResetFadeIn = function () {
+      splashFadeIn    = 0;
+      splashFadeOut   = 0;
+      splashDismissed = false;
+      splashVisible   = true;
+      // Start the RAF loop only now — not from page load
+      if (!splashRaf) splashLoop();
+    };
+
+    // Crop: skip bottom 10% of video (removes white bar)
+    var CROP = 0.90;
+    var introRaf = null;
+    var _introReady = false; // true once video has enough data to play
 
     function resizeIntroCanvas() {
       introCanvas.width  = window.innerWidth;
@@ -117,19 +492,17 @@
 
     function renderIntroFrame() {
       if (introVideo.paused && introVideo.ended) return;
-      const vw = introVideo.videoWidth;
-      const vh = introVideo.videoHeight;
+      var vw = introVideo.videoWidth;
+      var vh = introVideo.videoHeight;
       if (vw && vh) {
-        const cw = introCanvas.width;
-        const ch = introCanvas.height;
-        // Source: full width, top CROP% of video height (cuts white bar)
-        const srcH = vh * CROP;
-        // Destination: fill canvas maintaining aspect ratio (cover)
-        const scale = Math.max(cw / vw, ch / srcH);
-        const dw = vw * scale;
-        const dh = srcH * scale;
-        const dx = (cw - dw) / 2;
-        const dy = (ch - dh) / 2;
+        var cw = introCanvas.width;
+        var ch = introCanvas.height;
+        var srcH  = vh * CROP;
+        var scale = Math.max(cw / vw, ch / srcH);
+        var dw = vw * scale;
+        var dh = srcH * scale;
+        var dx = (cw - dw) / 2;
+        var dy = (ch - dh) / 2;
         introCtx.fillStyle = '#000';
         introCtx.fillRect(0, 0, cw, ch);
         introCtx.drawImage(introVideo, 0, 0, vw, srcH, dx, dy, dw, dh);
@@ -141,53 +514,147 @@
       if (introRaf) { cancelAnimationFrame(introRaf); introRaf = null; }
       introVideo.pause();
       introScreen.classList.add('fade-out');
-      setTimeout(() => {
+      setTimeout(function () {
         introScreen.classList.add('hidden');
-        // Show the intro replay button on the main menu
-        const replayBtn = document.getElementById('intro-replay-btn');
+        introScreen.classList.remove('fade-out');
+        var replayBtn = document.getElementById('intro-replay-btn');
         if (replayBtn) replayBtn.classList.add('visible');
+        // Switch to main menu scene
+        if (window._goToMenu) window._goToMenu();
       }, 650);
     }
 
+    // Attempt to play intro video, falls back gracefully
+    function playIntroVideo() {
+      introScreen.classList.remove('hidden');
+
+      // Try with sound first (user gesture just happened)
+      introVideo.muted = false;
+      introVideo.currentTime = 0;
+
+      var playPromise = introVideo.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(function () {
+            renderIntroFrame();
+          })
+          .catch(function () {
+            // Unmuted blocked — try muted
+            introVideo.muted = true;
+            introVideo.play()
+              .then(function () { renderIntroFrame(); })
+              .catch(function () {
+                // Completely blocked — skip intro
+                dismissIntro();
+              });
+          });
+      } else {
+        // Older browser — just start rendering
+        renderIntroFrame();
+      }
+    }
+
     introVideo.addEventListener('ended', dismissIntro);
-    introSkip.addEventListener('click', (e) => {
-      e.stopPropagation(); // prevent click bubbling to window/menu handlers
+    introSkip.addEventListener('click', function (e) {
+      e.stopPropagation();
       dismissIntro();
     });
 
-    // ── Click-to-start splash ──
-    const startSplash = document.getElementById('start-splash');
-    startSplash.addEventListener('click', () => {
-      startSplash.classList.add('hidden');
-      setTimeout(() => startSplash.remove(), 500);
-      // Now browser allows audio — play intro with sound
-      introVideo.muted = false;
-      introVideo.currentTime = 0;
-      introVideo.play().then(() => {
-        renderIntroFrame();
-      }).catch(() => {
-        // Still blocked — play muted
-        introVideo.muted = true;
-        introVideo.play().then(() => renderIntroFrame()).catch(() => dismissIntro());
-      });
+    // ── Splash done → play intro video → video ends → main menu ──
+    function _onSplashDone() {
+      playIntroVideo();
+    }
+
+    // Click/tap anywhere dismisses splash with fade-out
+    startSplash.addEventListener('click', function () {
+      if (splashDismissed) return;
+      splashDismissed = true;
+
+      // Apply loaded audio blobs (must happen inside user gesture for iOS)
+      if (window.Loader && window.Loader.applyAudioToElements) {
+        window.Loader.applyAudioToElements();
+      }
     }, { once: true });
 
-    // Auto-play MUTED on page load (browser policy requires muted for autoplay)
-    introVideo.muted = true;
-    introVideo.play().then(() => {
-      renderIntroFrame();
-    }).catch(() => dismissIntro());
-
-    // Expose functions globally so game.js can call them
+    // Expose globally so game.js intro-replay button can use them
     window.renderIntroFrame = renderIntroFrame;
-    window.dismissIntro = dismissIntro;
+    window.dismissIntro     = dismissIntro;
+    window.playIntroVideo   = playIntroVideo;
+
+    // ── Auto-detect touch device for default control mode ──
+    // Checked once on load; stored so settings.js can read it
+    window._isTouchDevice = (
+      'ontouchstart' in window ||
+      navigator.maxTouchPoints > 0 ||
+      window.matchMedia('(pointer: coarse)').matches
+    );
+
+    // ── How To Play overlay — shown once to touch-device users ──
+    // Fires when the game first enters gameplay (triggered by game.js via
+    // window._showHowToPlay()).  We set up the dismiss logic here because
+    // this script runs before game.js.
+    (function setupHowToPlay() {
+      var HTP_KEY   = 'roboShellHTPSeen';
+      var htpEl     = document.getElementById('howtoplay-overlay');
+      var htpBtn    = document.getElementById('howtoplay-btn');
+      if (!htpEl) return;
+
+      function dismissHTP() {
+        htpEl.classList.add('htp-out');
+        setTimeout(function () {
+          htpEl.style.display = 'none';
+          htpEl.classList.remove('htp-out');
+        }, 400);
+        try { localStorage.setItem(HTP_KEY, '1'); } catch (_) {}
+      }
+
+      htpBtn.addEventListener('click',    dismissHTP);
+      htpBtn.addEventListener('touchend', function (e) { e.preventDefault(); dismissHTP(); });
+      htpEl.addEventListener('click', function (e) {
+        if (e.target === htpEl) dismissHTP();
+      });
+
+      // Called by game.js the first time the GameScene starts
+      window._showHowToPlay = function () {
+        // Only show on touch devices and only once
+        var seen = false;
+        try { seen = !!localStorage.getItem(HTP_KEY); } catch (_) {}
+        if (seen) return;
+        if (!window._isTouchDevice && window._controlMode !== 'touch') return;
+        htpEl.style.display = 'flex';
+      };
+    }());
+
+    // ── Audio reliability: re-resume AudioContext on visibility restore ──
+    // When the user switches tabs or backgrounds the app on iOS/Android,
+    // the AudioContext is suspended.  Re-resume it the moment the page
+    // becomes visible again.
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') {
+        // Web Audio API (procedural SFX)
+        if (window.Maki && Maki.Audio && Maki.Audio._ctx) {
+          Maki.Audio._ctx.resume().catch(function () {});
+        }
+        // <audio> element BGM — attempt to re-play if it was playing before hide
+        var bgm = document.getElementById('bgm');
+        if (bgm && !bgm.paused && bgm.src) {
+          bgm.play().catch(function () {});
+        }
+      }
+    });
+
+  }());
   </script>
+
+  <!-- Game scripts — order matters -->
   <script src="src/maki.js"></script>
   <script src="src/loader.js"></script>
+  <script src="src/loading-screen.js"></script>
   <script src="src/background.js"></script>
   <script src="src/assets.js"></script>
   <script src="src/entities.js"></script>
   <script src="src/settings.js"></script>
   <script src="src/game.js"></script>
+
 </body>
 </html>

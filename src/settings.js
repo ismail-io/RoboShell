@@ -9,8 +9,8 @@
  * ============================================================
  */
 
-// Safe default — keyboard mode until settings loads from localStorage
-window._controlMode = 'keyboard';
+// Safe default — auto-detect touch device, fallback to keyboard
+window._controlMode = (window._isTouchDevice === true) ? 'touch' : 'keyboard';
 
 class SettingsPanel {
   constructor(engine) {
@@ -25,7 +25,9 @@ class SettingsPanel {
 
     // ── Persisted settings (localStorage) ──
     const saved = this._load();
-    this.controlMode  = saved.controlMode  || 'keyboard';  // 'keyboard' | 'touch'
+    // Default controlMode: auto-detect touch device if no saved preference
+    const defaultControl = (window._isTouchDevice === true) ? 'touch' : 'keyboard';
+    this.controlMode  = saved.controlMode  || defaultControl;
     this.musicVol     = saved.musicVol     ?? 0.7;
     this.sfxVol       = saved.sfxVol       ?? 0.8;
     this.muted        = saved.muted        ?? false;
